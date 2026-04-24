@@ -1,0 +1,32 @@
+.editorPage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f5f5f5;
+}
+
+.editorContent {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.leftPanel {
+  width: 240px;
+  background: #fff;
+  border-right: 1px solid #f0f0f0;
+  overflow-y: auto;
+}
+
+.canvasArea {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+}
+
+.rightPanel {
+  width: 300px;
+  background: #fff;
+  border-left: 1px solid #f0f0f0;
+  overflow-y: auto;
+}

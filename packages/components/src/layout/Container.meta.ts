@@ -1,0 +1,76 @@
+import type { ComponentMeta } from '@lowcode/types';
+
+export const ContainerMeta: ComponentMeta = {
+  name: 'Container',
+  label: '容器',
+  icon: 'AppstoreOutlined',
+  category: 'layout',
+  defaultProps: {
+    display: 'block',
+    padding: 16,
+    margin: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    minHeight: 100,
+    border: '1px solid #f0f0f0',
+  },
+  propSchema: [
+    {
+      name: 'display',
+      label: '显示方式',
+      type: 'select',
+      options: [
+        { label: '块级', value: 'block' },
+        { label: '弹性盒', value: 'flex' },
+        { label: '网格', value: 'grid' },
+      ],
+      defaultValue: 'block',
+      group: 'style',
+    },
+    {
+      name: 'padding',
+      label: '内边距',
+      type: 'number',
+      defaultValue: 16,
+      group: 'style',
+    },
+    {
+      name: 'margin',
+      label: '外边距',
+      type: 'string',
+      defaultValue: '0',
+      group: 'style',
+    },
+    {
+      name: 'backgroundColor',
+      label: '背景色',
+      type: 'color',
+      defaultValue: '#ffffff',
+      group: 'style',
+    },
+    {
+      name: 'borderRadius',
+      label: '圆角',
+      type: 'number',
+      defaultValue: 8,
+      group: 'style',
+    },
+    {
+      name: 'minHeight',
+      label: '最小高度',
+      type: 'number',
+      defaultValue: 100,
+      group: 'style',
+    },
+    {
+      name: 'border',
+      label: '边框',
+      type: 'string',
+      defaultValue: '1px solid #f0f0f0',
+      group: 'style',
+    },
+  ],
+  eventSchema: [],
+  styleSchema: [],
+  isContainer: true,
+};

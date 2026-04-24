@@ -1,0 +1,146 @@
+import React, { useMemo } from 'react';
+import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider } from 'antd';
+import { useEditorStore } from '@/store/editorStore';
+import { findComponentById } from '@lowcode/schema';
+import { getComponentMeta } from '@lowcode/components';
+import type { PropSchema, PageComponent } from '@lowcode/types';
+
+export const PropertyPanel: React.FC = () => {
+  const { schema, selectedId, updateComponent } = useEditorStore();
+
+  const selectedComponent = useMemo(() => {
+    if (!selectedId) return null;
+    return findComponentById(schema.page.components, selectedId);
+  }, [schema.page.components, selectedId]);
+
+  const componentMeta = useMemo(() => {
+    if (!selectedComponent) return null;
+    return getComponentMeta(selectedComponent.type);
+  }, [selectedComponent]);
+
+  if (!selectedComponent) {
+    return (
+      <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>
+        选择一个组件以编辑属性
+      </div>
+    );
+  }
+
+  const handlePropChange = (name: string, value: unknown) => {
+    updateComponent(selectedId!, { [name]: value });
+  };
+
+  const basicProps = componentMeta?.propSchema.filter((p) => p.group === 'basic' || !p.group);
+  const styleProps = componentMeta?.propSchema.filter((p) => p.group === 'style');
+  const dataProps = componentMeta?.propSchema.filter((p) => p.group === 'data');
+
+  const renderFormItem = (prop: PropSchema) => {
+    const value = selectedComponent.props[prop.name] ?? prop.defaultValue;
+
+    switch (prop.type) {
+      case 'string':
+        return (
+          <Input
+            value={value as string}
+            onChange={(e) => handlePropChange(prop.name, e.target.value)}
+            placeholder={prop.tooltip}
+          />
+        );
+      case 'number':
+        return (
+          <InputNumber
+            value={value as number}
+            onChange={(v) => handlePropChange(prop.name, v)}
+            style={{ width: '100%' }}
+            min={prop.min}
+            max={prop.max}
+          />
+        );
+      case 'boolean':
+        return (
+          <Switch
+            checked={value as boolean}
+            onChange={(checked) => handlePropChange(prop.name, checked)}
+          />
+        );
+      case 'select':
+        return (
+          <Select
+            value={value as string}
+            onChange={(v) => handlePropChange(prop.name, v)}
+            options={prop.options}
+            style={{ width: '100%' }}
+          />
+        );
+      case 'color':
+        return (
+          <ColorPicker
+            value={value as string}
+            onChange={(c) => handlePropChange(prop.name, c.toHexString())}
+          />
+        );
+      default:
+        return (
+          <Input
+            value={value as string}
+            onChange={(e) => handlePropChange(prop.name, e.target.value)}
+          />
+        );
+    }
+  };
+
+  const tabItems = [
+    {
+      key: 'basic',
+      label: '属性',
+      children: (
+        <Form layout="vertical" size="small">
+          <Form.Item label="组件ID">
+            <Input value={selectedComponent.id} disabled />
+          </Form.Item>
+          <Form.Item label="组件类型">
+            <Input value={componentMeta?.label || selectedComponent.type} disabled />
+          </Form.Item>
+          <Divider style={{ margin: '12px 0' }} />
+          {basicProps?.map((prop) => (
+            <Form.Item key={prop.name} label={prop.label}>
+              {renderFormItem(prop)}
+            </Form.Item>
+          ))}
+        </Form>
+      ),
+    },
+    {
+      key: 'style',
+      label: '样式',
+      children: (
+        <Form layout="vertical" size="small">
+          {styleProps?.map((prop) => (
+            <Form.Item key={prop.name} label={prop.label}>
+              {renderFormItem(prop)}
+            </Form.Item>
+          ))}
+        </Form>
+      ),
+    },
+    {
+      key: 'data',
+      label: '数据',
+      children: (
+        <Form layout="vertical" size="small">
+          {dataProps?.map((prop) => (
+            <Form.Item key={prop.name} label={prop.label}>
+              {renderFormItem(prop)}
+            </Form.Item>
+          ))}
+        </Form>
+      ),
+    },
+  ];
+
+  return (
+    <div style={{ padding: '12px 0' }}>
+      <Tabs items={tabItems} defaultActiveKey="basic" size="small" />
+    </div>
+  );
+};

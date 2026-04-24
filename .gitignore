@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+
+# Database
+*.db
+*.db-journal
+
+# Prisma
+services/server/prisma/dev.db
+services/server/prisma/migrations/
+
+# Exported
+exported-*/
+
+/# Docs
+docs/*.md
