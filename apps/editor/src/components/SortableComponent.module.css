@@ -2,8 +2,11 @@
   position: relative;
   border: 1px dashed transparent;
   border-radius: 4px;
-  transition: border-color 0.2s;
-  cursor: grab;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: 8px;
+  box-sizing: border-box;
 }
 
 .component:hover {
@@ -16,6 +19,11 @@
 
 .component.dragging {
   cursor: grabbing;
+}
+
+.component.dragOver {
+  border: 2px dashed #1677ff;
+  background: rgba(22, 119, 255, 0.05);
 }
 
 .toolbar {
@@ -39,7 +47,7 @@
   font-weight: 500;
 }
 
-.deleteBtn {
+.actionBtn {
   width: 18px;
   height: 18px;
   display: flex;
@@ -49,13 +57,23 @@
   border: none;
   border-radius: 50%;
   color: #fff;
-  font-size: 14px;
+  font-size: 12px;
   cursor: pointer;
   transition: background 0.2s;
+  padding: 0;
 }
 
-.deleteBtn:hover {
+.actionBtn:hover {
   background: rgba(255, 255, 255, 0.4);
+}
+
+.actionBtn.deleteBtn:hover {
+  background: #ff4d4f;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
 }
 
 .content {

@@ -8,8 +8,8 @@ import { DEVICE_WIDTHS } from '@lowcode/utils';
 import styles from './Canvas.module.css';
 
 export const Canvas: React.FC = () => {
-  const { schema, selectedId, device, zoom, isDragging } = useEditorStore();
-  const { setNodeRef, isOver } = useDroppable({ id: 'canvas' });
+  const { schema, selectedId, device, zoom, selectComponent } = useEditorStore();
+  const { setNodeRef: setCanvasRef, isOver: isCanvasOver } = useDroppable({ id: 'canvas' });
 
   const componentIds = useMemo(
     () => schema.page.components.map((c) => c.id),
@@ -18,11 +18,17 @@ export const Canvas: React.FC = () => {
 
   const canvasWidth = DEVICE_WIDTHS[device];
 
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains(styles.canvasBody)) {
+      selectComponent(null);
+    }
+  };
+
   return (
     <div className={styles.canvasWrapper}>
       <div
-        ref={setNodeRef}
-        className={`${styles.canvas} ${isOver ? styles.dragOver : ''}`}
+        ref={setCanvasRef}
+        className={`${styles.canvas} ${isCanvasOver ? styles.dragOver : ''}`}
         style={{
           width: canvasWidth * zoom,
           minHeight: 600,
@@ -35,7 +41,7 @@ export const Canvas: React.FC = () => {
           <span className={styles.canvasSize}>{canvasWidth}px</span>
         </div>
 
-        <div className={styles.canvasBody}>
+        <div className={styles.canvasBody} onClick={handleCanvasClick}>
           {schema.page.components.length === 0 ? (
             <Empty
               className={styles.empty}

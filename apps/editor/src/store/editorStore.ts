@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { PageSchema, PageComponent } from '@lowcode/types';
-import { createEmptyPageSchema, generateComponentId, insertComponent, removeComponentById, updateComponentProps, moveComponent as moveComponentHelper } from '@lowcode/schema';
+import { createEmptyPageSchema, generateComponentId, insertComponent, removeComponentById, updateComponentProps, moveComponent as moveComponentHelper, findComponentById, cloneComponent } from '@lowcode/schema';
 import { getComponentMeta } from '@lowcode/components';
 
 interface HistoryState {
@@ -21,6 +21,7 @@ interface EditorState {
   isPreview: boolean;
   history: HistoryState;
   isDirty: boolean;
+  clipboard: PageComponent | null;
 }
 
 interface EditorActions {
@@ -40,6 +41,8 @@ interface EditorActions {
   moveComponent: (sourceId: string, targetId: string | null, position: 'before' | 'after' | 'inside', index?: number) => void;
   duplicateComponent: (id: string) => void;
   pasteComponent: () => void;
+  copyComponent: (id: string) => void;
+  cutComponent: (id: string) => void;
 
   undo: () => void;
   redo: () => void;
@@ -61,6 +64,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     isDragging: false,
     isPreview: false,
     isDirty: false,
+    clipboard: null,
     history: {
       past: [],
       present: createEmptyPageSchema('未命名页面'),
@@ -158,6 +162,9 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }),
 
     addComponent: (componentType, targetId, position) => {
+      // #region agent log
+      console.log('[DEBUG store addComponent]', { componentType, targetId, position });
+      // #endregion
       const meta = getComponentMeta(componentType);
       if (!meta) return;
 
@@ -178,6 +185,9 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           newComponent,
           position
         );
+        // #region agent log
+        console.log('[DEBUG after insertComponent]', { targetId, position, resultCount: state.schema.page.components.length });
+        // #endregion
         state.selectedId = newComponent.id;
         state.isDirty = true;
       });
@@ -227,11 +237,66 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     },
 
     duplicateComponent: (id) => {
-      // TODO: implement duplication
+      const component = findComponentById(get().schema.page.components, id);
+      if (!component) return;
+
+      get().saveSnapshot();
+
+      const cloned = cloneComponent(component);
+      set((state) => {
+        state.schema.page.components = insertComponent(
+          state.schema.page.components,
+          id,
+          cloned,
+          'after'
+        );
+        state.selectedId = cloned.id;
+        state.isDirty = true;
+      });
     },
 
     pasteComponent: () => {
-      // TODO: implement clipboard paste
+      const { clipboard, selectedId } = get();
+      if (!clipboard) return;
+
+      get().saveSnapshot();
+
+      const cloned = cloneComponent(clipboard);
+      set((state) => {
+        state.schema.page.components = insertComponent(
+          state.schema.page.components,
+          selectedId,
+          cloned,
+          selectedId ? 'after' : 'inside'
+        );
+        state.selectedId = cloned.id;
+        state.isDirty = true;
+      });
+    },
+
+    copyComponent: (id) => {
+      const component = findComponentById(get().schema.page.components, id);
+      if (!component) return;
+      set({ clipboard: JSON.parse(JSON.stringify(component)) });
+    },
+
+    cutComponent: (id) => {
+      const component = findComponentById(get().schema.page.components, id);
+      if (!component) return;
+
+      get().saveSnapshot();
+
+      set((state) => {
+        state.clipboard = JSON.parse(JSON.stringify(component));
+        state.schema.page.components = removeComponentById(
+          state.schema.page.components,
+          id
+        );
+        if (state.selectedId === id) {
+          state.selectedId = null;
+        }
+        state.isDirty = true;
+      });
     },
 
     savePage: async () => {

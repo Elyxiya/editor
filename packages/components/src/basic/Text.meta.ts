@@ -6,7 +6,7 @@ export const TextMeta: ComponentMeta = {
   icon: 'FontSizeOutlined',
   category: 'basic',
   defaultProps: {
-    content: '这是一段文本',
+    text: '这是一段文本',
     type: 'secondary',
     level: 1,
     strong: false,
@@ -108,3 +108,11 @@ export const TextMeta: ComponentMeta = {
     ]},
   ],
 };
+
+export function getTextStyles(props: Record<string, unknown>): React.CSSProperties {
+  return {
+    color: props.color as string,
+    fontSize: (props.fontSize as string) || '14px',
+    textAlign: props.textAlign as React.CSSProperties['textAlign'],
+  };
+}

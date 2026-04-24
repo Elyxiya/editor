@@ -6,15 +6,13 @@ import { CSS } from '@dnd-kit/utilities';
 import { getComponentsByCategory } from '@lowcode/components';
 import type { ComponentMeta } from '@lowcode/types';
 
-const { Panel } = Collapse;
-
 interface DraggableItemProps {
   meta: ComponentMeta;
 }
 
 const DraggableItem: React.FC<DraggableItemProps> = ({ meta }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `lib-${meta.name}`,
+    id: `lib-${meta.name}-${meta.label}`,
     data: { type: 'component', componentType: meta.name, componentMeta: meta },
   });
 
@@ -65,6 +63,18 @@ export const ComponentLibrary: React.FC = () => {
     ),
   })).filter((cat) => cat.components.length > 0 || !search);
 
+  const collapseItems = filteredCategories.map((cat) => ({
+    key: cat.key,
+    label: cat.label,
+    children: (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {cat.components.map((meta) => (
+          <DraggableItem key={meta.name} meta={meta} />
+        ))}
+      </div>
+    ),
+  }));
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '12px' }}>
@@ -78,20 +88,11 @@ export const ComponentLibrary: React.FC = () => {
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
         <Collapse
+          items={collapseItems}
           ghost
           activeKey={activeKeys}
           onChange={(keys) => setActiveKeys(keys as string[])}
-        >
-          {filteredCategories.map((cat) => (
-            <Panel header={cat.label} key={cat.key}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {cat.components.map((meta) => (
-                  <DraggableItem key={meta.name} meta={meta} />
-                ))}
-              </div>
-            </Panel>
-          ))}
-        </Collapse>
+        />
       </div>
     </div>
   );

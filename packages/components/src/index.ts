@@ -4,32 +4,54 @@ import { LcButton } from './basic/Button';
 import { LcInput } from './basic/Input';
 import { LcText } from './basic/Text';
 import { LcImage } from './basic/Image';
+import { LcForm } from './basic/Form';
+import { LcFormItem } from './basic/FormItem';
+import { LcSelect } from './basic/Select';
 import { LcContainer } from './layout/Container';
 import { LcSpace } from './layout/Space';
 import { LcCard } from './business/Card';
 import { LcTable } from './business/Table';
+import { LcModal } from './business/Modal';
+import { LcTabs } from './business/Tabs';
+import { LcDivider } from './business/Divider';
 
 export * from './basic/Button';
 export * from './basic/Input';
 export * from './basic/Text';
 export * from './basic/Image';
+export * from './basic/Form';
+export * from './basic/FormItem';
+export * from './basic/Select';
 export * from './layout/Container';
 export * from './layout/Space';
 export * from './business/Card';
 export * from './business/Table';
+export * from './business/Modal';
+export * from './business/Tabs';
+export * from './business/Divider';
 export * from './registry';
+
+type ComponentWithMeta = {
+  meta: ComponentMeta;
+};
 
 export const componentRegistry: Map<string, ComponentMeta> = new Map();
 
 const allComponents: Array<{ meta: ComponentMeta; component: React.ComponentType<ComponentProps> }> = [
-  { meta: LcButton.meta, component: LcButton },
-  { meta: LcInput.meta, component: LcInput },
-  { meta: LcText.meta, component: LcText },
-  { meta: LcImage.meta, component: LcImage },
-  { meta: LcContainer.meta, component: LcContainer },
-  { meta: LcSpace.meta, component: LcSpace },
-  { meta: LcCard.meta, component: LcCard },
-  { meta: LcTable.meta, component: LcTable },
+  { meta: (LcButton as unknown as ComponentWithMeta).meta, component: LcButton },
+  { meta: (LcInput as unknown as ComponentWithMeta).meta, component: LcInput },
+  { meta: (LcText as unknown as ComponentWithMeta).meta, component: LcText },
+  { meta: (LcImage as unknown as ComponentWithMeta).meta, component: LcImage },
+  { meta: (LcForm as unknown as ComponentWithMeta).meta, component: LcForm },
+  { meta: (LcFormItem as unknown as ComponentWithMeta).meta, component: LcFormItem },
+  { meta: (LcSelect as unknown as ComponentWithMeta).meta, component: LcSelect },
+  { meta: (LcContainer as unknown as ComponentWithMeta).meta, component: LcContainer },
+  { meta: (LcSpace as unknown as ComponentWithMeta).meta, component: LcSpace },
+  { meta: (LcCard as unknown as ComponentWithMeta).meta, component: LcCard },
+  { meta: (LcTable as unknown as ComponentWithMeta).meta, component: LcTable },
+  { meta: (LcModal as unknown as ComponentWithMeta).meta, component: LcModal },
+  { meta: (LcTabs as unknown as ComponentWithMeta).meta, component: LcTabs },
+  { meta: (LcDivider as unknown as ComponentWithMeta).meta, component: LcDivider },
 ];
 
 allComponents.forEach(({ meta }) => {

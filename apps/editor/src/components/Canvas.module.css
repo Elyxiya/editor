@@ -42,6 +42,9 @@
 .canvasBody {
   padding: 16px;
   min-height: 500px;
+  position: relative;
+  /* 让整个区域都可以作为拖拽目标 */
+  min-width: 200px;
 }
 
 .empty {

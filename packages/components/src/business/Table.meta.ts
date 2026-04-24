@@ -9,6 +9,7 @@ export const TableMeta: ComponentMeta = {
     columns: [],
     dataSource: [],
     rowKey: 'id',
+    variant: 'outlined',
     bordered: false,
     striped: false,
     pagination: true,
@@ -35,10 +36,15 @@ export const TableMeta: ComponentMeta = {
       group: 'basic',
     },
     {
-      name: 'bordered',
-      label: '带边框',
-      type: 'boolean',
-      defaultValue: false,
+      name: 'variant',
+      label: '边框样式',
+      type: 'select',
+      options: [
+        { label: '有边框', value: 'outlined' },
+        { label: '无边框', value: 'borderless' },
+        { label: '填充', value: 'filled' },
+      ],
+      defaultValue: 'outlined',
       group: 'style',
     },
     {

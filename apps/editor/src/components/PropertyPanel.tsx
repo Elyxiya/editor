@@ -3,7 +3,7 @@ import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider } 
 import { useEditorStore } from '@/store/editorStore';
 import { findComponentById } from '@lowcode/schema';
 import { getComponentMeta } from '@lowcode/components';
-import type { PropSchema, PageComponent } from '@lowcode/types';
+import type { PropSchema } from '@lowcode/types';
 
 export const PropertyPanel: React.FC = () => {
   const { schema, selectedId, updateComponent } = useEditorStore();
@@ -33,6 +33,7 @@ export const PropertyPanel: React.FC = () => {
   const basicProps = componentMeta?.propSchema.filter((p) => p.group === 'basic' || !p.group);
   const styleProps = componentMeta?.propSchema.filter((p) => p.group === 'style');
   const dataProps = componentMeta?.propSchema.filter((p) => p.group === 'data');
+  const eventList = componentMeta?.eventSchema || [];
 
   const renderFormItem = (prop: PropSchema) => {
     const value = selectedComponent.props[prop.name] ?? prop.defaultValue;
@@ -72,6 +73,23 @@ export const PropertyPanel: React.FC = () => {
             style={{ width: '100%' }}
           />
         );
+      case 'array':
+        return (
+          <Input.TextArea
+            value={Array.isArray(value) ? JSON.stringify(value, null, 2) : (value as string)}
+            onChange={(e) => {
+              try {
+                const parsed = JSON.parse(e.target.value || '[]');
+                handlePropChange(prop.name, Array.isArray(parsed) ? parsed : []);
+              } catch {
+                handlePropChange(prop.name, []);
+              }
+            }}
+            placeholder={'JSON 数组格式，例如：[{"title":"列名","dataIndex":"field"}]'}
+            rows={4}
+            style={{ fontFamily: 'monospace', fontSize: 12 }}
+          />
+        );
       case 'color':
         return (
           <ColorPicker
@@ -89,7 +107,7 @@ export const PropertyPanel: React.FC = () => {
     }
   };
 
-  const tabItems = [
+  const tabItems: TabsProps['items'] = [
     {
       key: 'basic',
       label: '属性',
@@ -136,6 +154,38 @@ export const PropertyPanel: React.FC = () => {
         </Form>
       ),
     },
+    {
+      key: 'event',
+      label: '事件',
+      children: (
+        <div style={{ padding: '0 12px' }}>
+          {eventList.length === 0 ? (
+            <div style={{ color: '#999', textAlign: 'center', padding: '24px 0' }}>
+              该组件暂无事件配置
+            </div>
+          ) : (
+            eventList.map((event) => (
+              <div key={event.name} style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 8, fontWeight: 500 }}>{event.label}</div>
+                <Input.TextArea
+                  placeholder={`${event.description || ''}\n例如: console.log('click')`}
+                  rows={3}
+                  onChange={(e) => {
+                    const events = selectedComponent.events || {};
+                    if (e.target.value) {
+                      handlePropChange('events', { ...events, [event.name]: e.target.value });
+                    }
+                  }}
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
+                  {event.description}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -144,3 +194,5 @@ export const PropertyPanel: React.FC = () => {
     </div>
   );
 };
+
+type TabsProps = React.ComponentProps<typeof Tabs>;

@@ -6,9 +6,12 @@ import {
 } from '@ant-design/icons';
 import { useEditorStore } from '@/store/editorStore';
 import { DEVICE_WIDTHS } from '@lowcode/utils';
+import { getComponent } from '@lowcode/components';
 
 export const EditorToolbar: React.FC = () => {
-  const { schema, setSchema, canUndo, canRedo, undo, redo, device, setDevice, zoom, setZoom, savePage } = useEditorStore() as any;
+  const { schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage } = useEditorStore();
+  const canUndo = useEditorStore((state) => state.history.past.length > 0);
+  const canRedo = useEditorStore((state) => state.history.future.length > 0);
   const [isPreview, setIsPreview] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
 
@@ -24,6 +27,9 @@ export const EditorToolbar: React.FC = () => {
     }
   };
 
+  const canvasWidth = DEVICE_WIDTHS[device];
+  const canvasHeight = 600;
+
   const handlePreview = () => setIsPreview(true);
 
   const handleExport = () => {
@@ -35,6 +41,63 @@ export const EditorToolbar: React.FC = () => {
       title: '确认发布', content: '确定要发布当前页面吗？',
       okText: '确认发布', onOk: () => message.success('发布成功'),
     });
+  };
+
+  const renderPreviewComponent = (component: any): React.ReactNode => {
+    const Comp = getComponent(component.type);
+
+    if (!Comp) {
+      return <div key={component.id}>未知组件: {component.type}</div>;
+    }
+
+    const children = component.children?.map(renderPreviewComponent);
+
+    if (component.type === 'Container') {
+      return (
+        <div
+          key={component.id}
+          style={{
+            display: 'flex',
+            padding: component.props?.padding || 16,
+            background: component.props?.backgroundColor || '#ffffff',
+            borderRadius: component.props?.borderRadius || 0,
+            minHeight: component.props?.minHeight || 'auto',
+            flexDirection: component.props?.flexDirection || 'row',
+            justifyContent: component.props?.justifyContent || 'flex-start',
+            alignItems: component.props?.alignItems || 'flex-start',
+            gap: component.props?.gap || 0,
+          }}
+        >
+          {children}
+        </div>
+      );
+    }
+
+    if (component.type === 'Space') {
+      const gapMap: Record<string, number> = { small: 8, middle: 16, large: 24 };
+      const gap = typeof component.props?.size === 'string'
+        ? gapMap[component.props.size] || 8
+        : (component.props?.size || 8);
+      return (
+        <div
+          key={component.id}
+          style={{
+            display: 'flex',
+            flexDirection: component.props?.direction === 'vertical' ? 'column' : 'row',
+            gap,
+            alignItems: component.props?.align === 'center' ? 'center' : component.props?.align === 'end' ? 'flex-end' : 'flex-start',
+          }}
+        >
+          {children}
+        </div>
+      );
+    }
+
+    if (children && children.length > 0 && component.type !== 'FormItem') {
+      return <div key={component.id}><Comp {...component.props}>{children}</Comp></div>;
+    }
+
+    return <div key={component.id} style={{ width: '100%' }}><Comp {...component.props} /></div>;
   };
 
   return (
@@ -49,10 +112,10 @@ export const EditorToolbar: React.FC = () => {
           </Tooltip>
           <Divider type="vertical" />
           <Tooltip title="撤销 (Ctrl+Z)">
-            <Button icon={<UndoOutlined />} disabled={!canUndo?.()} onClick={undo} />
+            <Button icon={<UndoOutlined />} disabled={!canUndo} onClick={undo} />
           </Tooltip>
           <Tooltip title="重做 (Ctrl+Y)">
-            <Button icon={<RedoOutlined />} disabled={!canRedo?.()} onClick={redo} />
+            <Button icon={<RedoOutlined />} disabled={!canRedo} onClick={redo} />
           </Tooltip>
           <Divider type="vertical" />
           <Select value={device} onChange={setDevice} style={{ width: 120 }}
@@ -80,9 +143,24 @@ export const EditorToolbar: React.FC = () => {
         </Space>
       </div>
       {isPreview && (
-        <Modal title="页面预览" open={isPreview} onCancel={() => setIsPreview(false)} footer={null} width={DEVICE_WIDTHS[device] + 100}>
-          <div style={{ width: DEVICE_WIDTHS[device], minHeight: 600, background: '#fff', margin: '0 auto', border: '1px solid #f0f0f0', padding: 16 }}>
-            <h2>{schema.page.title}</h2>
+        <Modal
+          title={`预览: ${schema.page.title}`}
+          open={isPreview}
+          onCancel={() => setIsPreview(false)}
+          footer={null}
+          width={canvasWidth + 100}
+        >
+          <div
+            style={{
+              width: canvasWidth,
+              minHeight: canvasHeight,
+              background: schema.page.props?.background || '#fff',
+              margin: '0 auto',
+              border: '1px solid #f0f0f0',
+              padding: schema.page.props?.padding || 16,
+            }}
+          >
+            {schema.page.components.map(renderPreviewComponent)}
           </div>
         </Modal>
       )}

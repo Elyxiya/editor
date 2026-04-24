@@ -70,3 +70,10 @@ export const ImageMeta: ComponentMeta = {
   ],
   styleSchema: [],
 };
+
+export function getImageStyles(props: Record<string, unknown>): React.CSSProperties {
+  return {
+    width: props.width as string | number,
+    height: props.height as string | number,
+  };
+}

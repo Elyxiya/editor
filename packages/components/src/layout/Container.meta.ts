@@ -74,3 +74,9 @@ export const ContainerMeta: ComponentMeta = {
   styleSchema: [],
   isContainer: true,
 };
+
+export function getContainerStyles(props: Record<string, unknown>): React.CSSProperties {
+  return {
+    margin: props.margin as React.CSSProperties['margin'],
+  };
+}

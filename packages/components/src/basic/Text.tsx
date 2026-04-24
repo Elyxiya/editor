@@ -1,83 +1,69 @@
 import React from 'react';
 import { Typography } from 'antd';
+import { TextMeta, getTextStyles } from './Text.meta';
 import type { ComponentProps } from '@lowcode/types';
-import { TextMeta } from './Text.meta';
 
 export { TextMeta };
 
 const { Text: AntText } = Typography;
 
 interface LcTextProps extends ComponentProps {
-  content?: string;
-  type?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'disabled';
-  level?: number;
-  strong?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  delete?: boolean;
+  text?: string;
+  type?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
+  disabled?: boolean;
   mark?: boolean;
   code?: boolean;
-  color?: string;
-  fontSize?: string;
-  textAlign?: 'left' | 'center' | 'right';
+  keyboard?: boolean;
+  underline?: boolean;
+  delete?: boolean;
+  strong?: boolean;
+  italic?: boolean;
 }
 
-export const LcText: React.FC<LcTextProps> = (props) => {
-  const {
-    content = '这是一段文本',
-    type = 'secondary',
-    level = 0,
-    strong = false,
-    italic = false,
-    underline = false,
-    delete: isDelete = false,
-    mark = false,
-    code = false,
-    color,
-    fontSize,
-    textAlign = 'left',
-    style,
-    className,
-    ...rest
-  } = props;
+export const LcText = Object.assign(
+  (props: LcTextProps) => {
+    const {
+      text = '文本',
+      type,
+      disabled = false,
+      mark = false,
+      code = false,
+      keyboard = false,
+      underline = false,
+      delete: del = false,
+      strong = false,
+      italic = false,
+      style,
+      className,
+      ...rest
+    } = props;
 
-  const getTypographyType = (): 'secondary' | 'success' | 'warning' | 'danger' | 'disabled' | undefined => {
-    if (['secondary', 'success', 'warning', 'danger', 'disabled'].includes(type)) {
-      return type as 'secondary' | 'success' | 'warning' | 'danger' | 'disabled';
-    }
-    return undefined;
-  };
+    const typeMap: Record<string, 'secondary' | 'success' | 'warning' | 'danger'> = {
+      primary: 'secondary',
+      secondary: 'secondary',
+      success: 'success',
+      warning: 'warning',
+      danger: 'danger',
+    };
 
-  const TitleElement = `h${Math.min(Math.max(level, 1), 6)}` as keyof JSX.IntrinsicElements;
-
-  if (level > 0) {
-    return React.createElement(
-      TitleElement,
-      {
-        style: { textAlign, color, fontSize, ...(style as React.CSSProperties) },
-        className,
-        ...rest,
-      },
-      content
+    return (
+      <AntText
+        type={type ? typeMap[type] : undefined}
+        disabled={disabled}
+        mark={mark}
+        code={code}
+        keyboard={keyboard}
+        underline={underline}
+        delete={del}
+        strong={strong}
+        italic={italic}
+        style={{ ...getTextStyles(props), ...(style as React.CSSProperties) }}
+        className={className as string | undefined}
+        {...rest}
+      >
+        {text}
+      </AntText>
     );
-  }
-
-  return (
-    <AntText
-      type={getTypographyType()}
-      strong={strong}
-      italic={italic}
-      underline={underline}
-      delete={isDelete}
-      mark={mark}
-      code={code}
-      style={{ textAlign, color, fontSize, ...(style as React.CSSProperties) }}
-      className={className}
-      {...rest}
-    >
-      {content}
-    </AntText>
-  );
-};
-
-LcText.meta = TextMeta;
+  },
+  { meta: TextMeta }
+);
