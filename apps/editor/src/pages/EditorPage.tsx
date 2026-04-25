@@ -1,17 +1,37 @@
 import React, { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, CollisionDetection, closestCenter, pointerWithin } from '@dnd-kit/core';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { ComponentLibrary } from '@/components/ComponentLibrary';
 import { Canvas } from '@/components/Canvas';
 import { PropertyPanel } from '@/components/PropertyPanel';
 import { useEditorStore } from '@/store/editorStore';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { getComponentMeta, getComponent } from '@lowcode/components';
+import { getComponentMeta } from '@lowcode/components';
+
+/**
+ * Collision detection: prefer the most specific (smallest) element under the pointer.
+ * Canvas (1440×600) must never win over a small sortable component.
+ */
+const smartCollisionDetection: CollisionDetection = (args) => {
+  // pointerWithin: finds all droppable containers under the pointer
+  const collisions = pointerWithin(args);
+  if (collisions.length === 0) return closestCenter(args);
+
+  // Sort by area ascending → smallest element wins (most specific)
+  const sorted = [...collisions].sort((a, b) => {
+    const ra = (a.rect?.rect) ?? { width: Infinity, height: Infinity };
+    const rb = (b.rect?.rect) ?? { width: Infinity, height: Infinity };
+    return (ra.width * ra.height) - (rb.width * rb.height);
+  });
+
+  return [sorted[0]];
+};
 
 export const EditorPage: React.FC = () => {
   const { pageId } = useParams<{ pageId?: string }>();
-  const { schema, setSchema, addComponent, moveComponent, activeId, setActiveId } = useEditorStore() as any;
+  const store = useEditorStore() as any;
+  const { schema, setSchema, addComponent, moveComponent, setActiveId, overContainerId, setOverContainerId } = store;
   const [activeDragData, setActiveDragData] = React.useState<any>(null);
 
   useKeyboardShortcuts();
@@ -42,41 +62,56 @@ export const EditorPage: React.FC = () => {
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
     setActiveDragData(null);
+    setOverContainerId(null);
+
     const { active, over } = event;
     if (!over) return;
 
     const activeData = active.data.current;
     const overData = over.data.current;
-    // #region agent log
-    console.log('[DEBUG dragEnd]', { activeId: String(active.id), overId: String(over.id), activeType: activeData?.type, overSortable: overData?.sortable, componentType: activeData?.componentType });
-    // #endregion
+
+    console.log('[DEBUG dragEnd]', {
+      activeId: String(active.id),
+      overId: String(over.id),
+      overData,
+      overContainerId,
+    });
+
+    const resolveTarget = (): { targetId: string | null; position: 'before' | 'after' | 'inside' } => {
+      const overId = String(over.id);
+
+      // Pointer was inside a container drop zone (tracked by SortableComponent)
+      if (overContainerId) return { targetId: overContainerId, position: 'inside' };
+
+      // Dropped on the canvas background → append to root level
+      if (overId === 'canvas') return { targetId: null, position: 'after' };
+
+      // Dropped on a non-container sortable → insert after it (sibling)
+      if (overData?.type !== 'container') {
+        return { targetId: overId, position: 'after' };
+      }
+
+      // Dropped directly on a container (not inside its drop zone) → insert as sibling after it
+      return { targetId: overId, position: 'after' };
+    };
+
+    const { targetId, position } = resolveTarget();
+
+    console.log('[DEBUG resolved]', { targetId, position });
 
     if (activeData?.type === 'component') {
-      // 从组件库拖入
-      const componentType = activeData.componentType;
-      const targetId = over.id === 'canvas' ? null : (over.id as string);
-      const position = overData?.sortable ? 'inside' : 'after';
-      // #region agent log
-      console.log('[DEBUG addComponent args]', { componentType, targetId, position });
-      // #endregion
-      addComponent(componentType, targetId, position);
+      addComponent(activeData.componentType, targetId, position);
     } else if (activeData?.type === 'move') {
-      // 画布内移动组件
-      if (active.id !== over.id) {
-        const sourceId = activeData.componentId;
-        const targetId = over.id === 'canvas' ? null : (over.id as string);
-        const position = overData?.sortable ? 'inside' : 'after';
-        moveComponent(sourceId, targetId, position);
+      if (String(active.id) !== String(over.id)) {
+        moveComponent(activeData.componentId, targetId, position);
       }
     }
   };
 
-  // 渲染拖拽预览
   const renderDragPreview = () => {
     if (!activeDragData) return null;
 
     if (activeDragData.type === 'component') {
-      // 组件库中的组件
       const meta = getComponentMeta(activeDragData.componentType);
       return (
         <div style={{
@@ -94,7 +129,6 @@ export const EditorPage: React.FC = () => {
     }
 
     if (activeDragData.type === 'move') {
-      // 画布中的组件移动
       const component = schema.page.components.find((c: any) => c.id === activeDragData.componentId);
       if (component) {
         return (
@@ -119,7 +153,7 @@ export const EditorPage: React.FC = () => {
 
   return (
     <DndContext
-      collisionDetection={closestCenter}
+      collisionDetection={smartCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >

@@ -11,6 +11,7 @@ export default defineConfig({
       '@lowcode/schema': path.resolve(__dirname, '../../packages/schema/src'),
       '@lowcode/utils': path.resolve(__dirname, '../../packages/utils/src'),
       '@lowcode/components': path.resolve(__dirname, '../../packages/components/src'),
+      '@lowcode/codegen': path.resolve(__dirname, '../../packages/codegen/src'),
     },
   },
   server: {

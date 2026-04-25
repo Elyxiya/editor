@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.3.0",
+    "@lowcode/codegen": "workspace:*",
     "@lowcode/components": "workspace:*",
     "@lowcode/schema": "workspace:*",
     "@lowcode/types": "workspace:*",

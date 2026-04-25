@@ -15,6 +15,7 @@ interface EditorState {
   selectedId: string | null;
   hoveredId: string | null;
   activeId: string | null;
+  overContainerId: string | null;
   zoom: number;
   device: 'pc' | 'tablet' | 'mobile';
   isDragging: boolean;
@@ -30,6 +31,7 @@ interface EditorActions {
   selectComponent: (id: string | null) => void;
   hoverComponent: (id: string | null) => void;
   setActiveId: (id: string | null) => void;
+  setOverContainerId: (id: string | null) => void;
   setZoom: (zoom: number) => void;
   setDevice: (device: 'pc' | 'tablet' | 'mobile') => void;
   setDragging: (isDragging: boolean) => void;
@@ -59,6 +61,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     selectedId: null,
     hoveredId: null,
     activeId: null,
+    overContainerId: null,
     zoom: 1,
     device: 'pc',
     isDragging: false,
@@ -96,6 +99,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     setActiveId: (id) =>
       set((state) => {
         state.activeId = id;
+      }),
+
+    setOverContainerId: (id) =>
+      set((state) => {
+        state.overContainerId = id;
       }),
 
     setZoom: (zoom) =>
@@ -186,7 +194,12 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           position
         );
         // #region agent log
-        console.log('[DEBUG after insertComponent]', { targetId, position, resultCount: state.schema.page.components.length });
+        console.log('[DEBUG after insertComponent]', {
+          targetId,
+          position,
+          resultCount: state.schema.page.components.length,
+          allIds: state.schema.page.components.map(c => c.id),
+        });
         // #endregion
         state.selectedId = newComponent.id;
         state.isDirty = true;

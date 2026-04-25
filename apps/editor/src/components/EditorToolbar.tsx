@@ -1,19 +1,24 @@
-import React from 'react';
-import { Button, Space, Tooltip, Dropdown, Modal, message, Select, Divider, Input } from 'antd';
+import React, { useState } from 'react';
+import { Button, Space, Tooltip, Divider, Modal, message, Select, Input, Dropdown } from 'antd';
 import {
   SaveOutlined, UndoOutlined, RedoOutlined, EyeOutlined, ExportOutlined,
-  DesktopOutlined, TabletOutlined, MobileOutlined, HistoryOutlined, CloudUploadOutlined
+  DesktopOutlined, TabletOutlined, MobileOutlined, HistoryOutlined, CloudUploadOutlined,
+  FileZipOutlined, CodeOutlined
 } from '@ant-design/icons';
 import { useEditorStore } from '@/store/editorStore';
 import { DEVICE_WIDTHS } from '@lowcode/utils';
 import { getComponent } from '@lowcode/components';
+import { CodeExportPanel } from '@/components/CodeExportPanel';
+import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
 
 export const EditorToolbar: React.FC = () => {
   const { schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage } = useEditorStore();
   const canUndo = useEditorStore((state) => state.history.past.length > 0);
   const canRedo = useEditorStore((state) => state.history.future.length > 0);
-  const [isPreview, setIsPreview] = React.useState(false);
-  const [isSaving, setIsSaving] = React.useState(false);
+  const [isPreview, setIsPreview] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [showVersionPanel, setShowVersionPanel] = useState(false);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -33,7 +38,7 @@ export const EditorToolbar: React.FC = () => {
   const handlePreview = () => setIsPreview(true);
 
   const handleExport = () => {
-    Modal.info({ title: '导出代码', content: '代码导出功能将在后续版本中开放' });
+    setShowExportPanel(true);
   };
 
   const handlePublish = () => {
@@ -135,7 +140,7 @@ export const EditorToolbar: React.FC = () => {
       </div>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <Space>
-          <Tooltip title="历史记录"><Button icon={<HistoryOutlined />} /></Tooltip>
+          <Tooltip title="历史记录"><Button icon={<HistoryOutlined />} onClick={() => setShowVersionPanel(true)} /></Tooltip>
           <Divider type="vertical" />
           <Button icon={<EyeOutlined />} onClick={handlePreview}>预览</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
@@ -164,6 +169,44 @@ export const EditorToolbar: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* 代码导出面板 */}
+      <CodeExportPanel
+        open={showExportPanel}
+        onClose={() => setShowExportPanel(false)}
+        schema={schema}
+        page={{
+          id: schema.page.id || 'export-page',
+          name: schema.page.title.replace(/\s+/g, '-').toLowerCase(),
+          title: schema.page.title,
+          description: schema.page.description,
+          schema: schema,
+          version: 1,
+          createdBy: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }}
+      />
+
+      {/* 版本历史面板 */}
+      <VersionHistoryPanel
+        open={showVersionPanel}
+        onClose={() => setShowVersionPanel(false)}
+        page={{
+          id: schema.page.id || 'version-page',
+          name: schema.page.title.replace(/\s+/g, '-').toLowerCase(),
+          title: schema.page.title,
+          description: schema.page.description,
+          schema: schema,
+          version: 1,
+          createdBy: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }}
+        onRollback={(newSchema) => {
+          setSchema(newSchema);
+        }}
+      />
     </div>
   );
 };
