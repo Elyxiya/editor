@@ -60,26 +60,32 @@ export interface PageComponent {
   label?: string;
   props: ComponentProps;
   children?: PageComponent[];
-  events?: Record<string, string>;
+  events?: Record<string, string> | Record<string, unknown>;
   style?: Record<string, string>;
 }
 
 export interface DataSource {
   id: string;
   name: string;
-  type: 'api' | 'mock' | 'variable';
+  type: 'api' | 'mock' | 'variable' | 'graphql' | 'websocket';
+  description?: string;
+  autoLoad?: boolean;
+  loadDelay?: number;
   config: DataSourceConfig;
 }
 
 export interface DataSourceConfig {
   url?: string;
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
   headers?: Record<string, string>;
   params?: Record<string, string>;
   body?: unknown;
   authType?: 'none' | 'bearer' | 'basic' | 'apiKey';
   transform?: string;
   mockData?: unknown;
+  timeout?: number;
+  withCredentials?: boolean;
+  responseType?: 'json' | 'text' | 'blob' | 'arraybuffer';
 }
 
 export interface LogicNode {

@@ -3,14 +3,13 @@
  * 显示页面版本历史，支持版本对比和回滚
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal, Timeline, Button, Space, Tag, Typography, Empty, message,
   Popconfirm, Divider, Card, Descriptions, Badge, Tooltip
 } from 'antd';
 import {
-  HistoryOutlined, RollbackOutlined, EyeOutlined, CopyOutlined,
-  SaveOutlined, ArrowUpOutlined, QuestionCircleOutlined
+  HistoryOutlined, RollbackOutlined, EyeOutlined,
 } from '@ant-design/icons';
 import type { PageSchema, Page } from '@lowcode/types';
 import { getPageVersions, rollbackPage, getPageVersion, type PageVersion } from '@/services/page';
@@ -112,13 +111,6 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  // 获取版本标签类型
-  const getVersionTagType = (version: PageVersion, index: number): 'success' | 'warning' | 'normal' => {
-    if (index === 0) return 'success';  // 最新版本
-    if (version.comment?.includes('回滚')) return 'warning';
-    return 'normal';
   };
 
   // 预览版本内容

@@ -5,7 +5,7 @@ import type { ComponentProps } from '@lowcode/types';
 
 export { DividerMeta };
 
-export function getDividerStyles(props: Record<string, unknown>): React.CSSProperties {
+export function getDividerStyles(_props: Record<string, unknown>): React.CSSProperties {
   return {};
 }
 

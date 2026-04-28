@@ -5,7 +5,7 @@ import type { ComponentProps } from '@lowcode/types';
 
 export { CardMeta };
 
-export function getCardStyles(props: Record<string, unknown>): React.CSSProperties {
+export function getCardStyles(_props: Record<string, unknown>): React.CSSProperties {
   return {};
 }
 

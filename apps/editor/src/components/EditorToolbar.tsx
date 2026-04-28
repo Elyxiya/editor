@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
-import { Button, Space, Tooltip, Divider, Modal, message, Select, Input, Dropdown } from 'antd';
+import React, { useState, useCallback } from 'react';
+import { Button, Space, Tooltip, Divider, Modal, message, Select, Input } from 'antd';
 import {
   SaveOutlined, UndoOutlined, RedoOutlined, EyeOutlined, ExportOutlined,
   DesktopOutlined, TabletOutlined, MobileOutlined, HistoryOutlined, CloudUploadOutlined,
-  FileZipOutlined, CodeOutlined
+  ThunderboltOutlined, ApiOutlined
 } from '@ant-design/icons';
 import { useEditorStore } from '@/store/editorStore';
 import { DEVICE_WIDTHS } from '@lowcode/utils';
 import { getComponent } from '@lowcode/components';
 import { CodeExportPanel } from '@/components/CodeExportPanel';
 import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
+import { LogicFlowEditor } from '@/components/LogicFlowEditor';
+import { DataSourceManagementPanel } from '@/components/DataSourceManagementPanel';
+import type { LogicFlow } from '@lowcode/logic-engine';
+import type { DataSource as DataSourceType } from '@lowcode/types';
 
 export const EditorToolbar: React.FC = () => {
   const { schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage } = useEditorStore();
@@ -19,6 +23,9 @@ export const EditorToolbar: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
+  const [showLogicFlowEditor, setShowLogicFlowEditor] = useState(false);
+  const [showDataSourcePanel, setShowDataSourcePanel] = useState(false);
+  const [currentFlow, setCurrentFlow] = useState<LogicFlow | undefined>();
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -47,6 +54,31 @@ export const EditorToolbar: React.FC = () => {
       okText: '确认发布', onOk: () => message.success('发布成功'),
     });
   };
+
+  const handleLogicFlowSave = useCallback((flow: LogicFlow) => {
+    setCurrentFlow(flow);
+    const newSchema = {
+      ...schema,
+      page: {
+        ...schema.page,
+        props: {
+          ...schema.page.props,
+          logicFlow: flow,
+        },
+      },
+    };
+    setSchema(newSchema);
+    message.success('逻辑流程已保存');
+  }, [schema, setSchema]);
+
+  const handleDataSourceSave = useCallback((dataSources: Record<string, DataSourceType>) => {
+    const newSchema = {
+      ...schema,
+      dataSources,
+    };
+    setSchema(newSchema);
+    message.success('数据源配置已保存');
+  }, [schema, setSchema]);
 
   const renderPreviewComponent = (component: any): React.ReactNode => {
     const Comp = getComponent(component.type);
@@ -141,6 +173,8 @@ export const EditorToolbar: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <Space>
           <Tooltip title="历史记录"><Button icon={<HistoryOutlined />} onClick={() => setShowVersionPanel(true)} /></Tooltip>
+          <Tooltip title="数据源"><Button icon={<ApiOutlined />} onClick={() => setShowDataSourcePanel(true)} /></Tooltip>
+          <Tooltip title="逻辑流程"><Button icon={<ThunderboltOutlined />} onClick={() => setShowLogicFlowEditor(true)} /></Tooltip>
           <Divider type="vertical" />
           <Button icon={<EyeOutlined />} onClick={handlePreview}>预览</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
@@ -206,6 +240,22 @@ export const EditorToolbar: React.FC = () => {
         onRollback={(newSchema) => {
           setSchema(newSchema);
         }}
+      />
+
+      {/* 逻辑流程编辑器 */}
+      <LogicFlowEditor
+        open={showLogicFlowEditor}
+        onClose={() => setShowLogicFlowEditor(false)}
+        flow={currentFlow}
+        onSave={handleLogicFlowSave}
+      />
+
+      {/* 数据源管理面板 */}
+      <DataSourceManagementPanel
+        open={showDataSourcePanel}
+        onClose={() => setShowDataSourcePanel(false)}
+        dataSources={schema.dataSources || {}}
+        onSave={handleDataSourceSave}
       />
     </div>
   );

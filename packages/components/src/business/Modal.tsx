@@ -5,7 +5,7 @@ import type { ComponentProps } from '@lowcode/types';
 
 export { ModalMeta };
 
-export function getModalStyles(props: Record<string, unknown>): React.CSSProperties {
+export function getModalStyles(_props: Record<string, unknown>): React.CSSProperties {
   return {};
 }
 

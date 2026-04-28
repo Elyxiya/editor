@@ -59,7 +59,7 @@ export const ProjectListPage: React.FC = () => {
                 title={item.name}
                 description={
                   <Space direction="vertical" size={0}>
-                    <Text type="secondary" ellipsis={{ rows: 2 }}>
+                    <Text type="secondary" ellipsis={{ rows: 2 } as any}>
                       {item.description}
                     </Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>

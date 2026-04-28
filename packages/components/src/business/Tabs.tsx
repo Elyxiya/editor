@@ -5,7 +5,7 @@ import type { ComponentProps } from '@lowcode/types';
 
 export { TabsMeta };
 
-export function getTabsStyles(props: Record<string, unknown>): React.CSSProperties {
+export function getTabsStyles(_props: Record<string, unknown>): React.CSSProperties {
   return {};
 }
 

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { body, param, validationResult } from 'express-validator';
 
 const router = Router();
@@ -17,8 +17,8 @@ router.get('/', (req, res) => {
 // 获取单个页面
 router.get('/:id',
   param('id').notEmpty(),
-  (req, res) => {
-    const { id } = req.params;
+  (req: Request, res) => {
+    const id = req.params['id']!;
     const page = pages.get(id);
     if (!page) {
       return res.status(404).json({ success: false, message: 'Page not found' });
@@ -70,8 +70,8 @@ router.post('/',
 router.put('/:id',
   param('id').notEmpty(),
   body('schema').isObject(),
-  (req, res) => {
-    const { id } = req.params;
+  (req: Request, res) => {
+    const id = req.params['id']!;
     const page = pages.get(id);
     if (!page) {
       return res.status(404).json({ success: false, message: 'Page not found' });
@@ -104,8 +104,8 @@ router.put('/:id',
 // 删除页面
 router.delete('/:id',
   param('id').notEmpty(),
-  (req, res) => {
-    const { id } = req.params;
+  (req: Request, res) => {
+    const id = req.params['id']!;
     if (!pages.has(id)) {
       return res.status(404).json({ success: false, message: 'Page not found' });
     }
@@ -117,7 +117,7 @@ router.delete('/:id',
 
 // 获取页面版本历史
 router.get('/:id/versions', (req, res) => {
-  const { id } = req.params;
+  const id = req.params['id']!;
   const page = pages.get(id);
   if (!page) {
     return res.status(404).json({ success: false, message: 'Page not found' });
@@ -128,39 +128,41 @@ router.get('/:id/versions', (req, res) => {
 
 // 获取指定版本详情
 router.get('/:id/versions/:version', (req, res) => {
-  const { id, version: versionStr } = req.params;
+  const id = req.params['id']!;
+  const versionStr = req.params['version']!;
   const versionNum = parseInt(versionStr, 10);
-  
+
   const versions = pageVersions.get(id) || [];
   const targetVersion = versions.find((v: any) => v.version === versionNum);
-  
+
   if (!targetVersion) {
     return res.status(404).json({ success: false, message: 'Version not found' });
   }
-  
+
   res.json({ success: true, data: targetVersion });
 });
 
 // 回滚到指定版本
 router.post('/:id/rollback/:version', (req, res) => {
-  const { id, version: versionStr } = req.params;
+  const id = req.params['id']!;
+  const versionStr = req.params['version']!;
   const versionNum = parseInt(versionStr, 10);
-  
+
   const page = pages.get(id);
   if (!page) {
     return res.status(404).json({ success: false, message: 'Page not found' });
   }
-  
+
   const versions = pageVersions.get(id) || [];
   const targetVersion = versions.find((v: any) => v.version === versionNum);
-  
+
   if (!targetVersion) {
     return res.status(404).json({ success: false, message: 'Version not found' });
   }
-  
+
   const now = new Date().toISOString();
   const newVersion = page.version + 1;
-  
+
   // 保存当前版本到历史（回滚前状态）
   versions.push({
     version: newVersion,
@@ -169,13 +171,13 @@ router.post('/:id/rollback/:version', (req, res) => {
     comment: `回滚前版本（v${newVersion - 1}）`
   });
   pageVersions.set(id, versions);
-  
+
   // 执行回滚
   page.schema = JSON.parse(targetVersion.schema);
   page.version = newVersion;
   page.updatedAt = now;
   pages.set(id, page);
-  
+
   res.json({
     success: true,
     data: page,
@@ -185,7 +187,7 @@ router.post('/:id/rollback/:version', (req, res) => {
 
 // 发布页面
 router.post('/:id/publish', (req, res) => {
-  const { id } = req.params;
+  const id = req.params['id']!;
   const page = pages.get(id);
   if (!page) {
     return res.status(404).json({ success: false, message: 'Page not found' });
@@ -200,7 +202,7 @@ router.post('/:id/publish', (req, res) => {
 
 // 取消发布页面
 router.post('/:id/unpublish', (req, res) => {
-  const { id } = req.params;
+  const id = req.params['id']!;
   const page = pages.get(id);
   if (!page) {
     return res.status(404).json({ success: false, message: 'Page not found' });
@@ -214,15 +216,15 @@ router.post('/:id/unpublish', (req, res) => {
 });
 
 // 导出页面代码
-router.get('/:id/export', async (req, res) => {
-  const { id } = req.params;
-  const { format = 'zip' } = req.query;
-  
+router.get('/:id/export', (req, res) => {
+  const id = req.params['id']!;
+  const format = req.query['format'] as string || 'zip';
+
   const page = pages.get(id);
   if (!page) {
     return res.status(404).json({ success: false, message: 'Page not found' });
   }
-  
+
   // 返回导出的元信息，实际代码生成在前端完成
   res.json({
     success: true,

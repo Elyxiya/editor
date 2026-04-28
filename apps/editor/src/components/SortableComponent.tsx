@@ -144,10 +144,10 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
           onDragLeave={handleDragLeave}
         >
           <SortableContext
-            items={component.children.map((c) => c.id)}
+            items={component.children?.map((c) => c.id) || []}
             strategy={verticalListSortingStrategy}
           >
-            {component.children.map((child) => (
+            {component.children?.map((child) => (
               <SortableComponent
                 key={child.id}
                 component={child}

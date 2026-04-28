@@ -5,7 +5,7 @@ import type { ComponentProps } from '@lowcode/types';
 
 export { TableMeta };
 
-export function getTableStyles(props: Record<string, unknown>): React.CSSProperties {
+export function getTableStyles(_props: Record<string, unknown>): React.CSSProperties {
   return {};
 }
 
@@ -44,7 +44,6 @@ export const LcTable = Object.assign(
       columns = [],
       dataSource = [],
       rowKey = 'id',
-      variant = 'outlined',
       pagination = true,
       pageSize = 10,
       showHeader = true,
@@ -84,7 +83,6 @@ export const LcTable = Object.assign(
         columns={processedColumns}
         dataSource={dataSource}
         rowKey={rowKey}
-        variant={variant}
         pagination={pagination ? { pageSize, ...(typeof pagination === 'object' ? pagination : {}) } : false}
         showHeader={showHeader}
         size={size as TableProps<Record<string, unknown>>['size']}

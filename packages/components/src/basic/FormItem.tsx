@@ -5,7 +5,7 @@ import { FormItemMeta } from './FormItem.meta';
 
 export { FormItemMeta };
 
-export function getFormItemStyles(props: Record<string, unknown>): React.CSSProperties {
+export function getFormItemStyles(_props: Record<string, unknown>): React.CSSProperties {
   return {};
 }
 

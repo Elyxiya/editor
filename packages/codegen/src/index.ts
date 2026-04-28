@@ -94,6 +94,36 @@ const COMPONENT_TEMPLATES: Record<string, ComponentTemplate> = {
     componentName: 'Divider',
     isContainer: false,
   },
+  Badge: {
+    importStatement: "import { Badge } from 'antd';",
+    componentName: 'Badge',
+    isContainer: false,
+  },
+  Tag: {
+    importStatement: "import { Tag } from 'antd';",
+    componentName: 'Tag',
+    isContainer: false,
+  },
+  Avatar: {
+    importStatement: "import { Avatar } from 'antd';",
+    componentName: 'Avatar',
+    isContainer: false,
+  },
+  Progress: {
+    importStatement: "import { Progress } from 'antd';",
+    componentName: 'Progress',
+    isContainer: false,
+  },
+  Statistic: {
+    importStatement: "import { Statistic } from 'antd';",
+    componentName: 'Statistic',
+    isContainer: false,
+  },
+  Skeleton: {
+    importStatement: "import { Skeleton } from 'antd';",
+    componentName: 'Skeleton',
+    isContainer: false,
+  },
 };
 
 // ============================================================
@@ -115,7 +145,7 @@ export interface CodeGenOptions {
 export interface GeneratedFile {
   path: string;                 // 文件路径
   content: string;               // 文件内容
-  language: 'tsx' | 'ts' | 'css' | 'json' | 'md';
+  language: 'tsx' | 'ts' | 'css' | 'json' | 'md' | 'html';
 }
 
 export interface CodeGenResult {
@@ -214,13 +244,12 @@ function generateComponentCode(
   options: CodeGenOptions
 ): string {
   const template = COMPONENT_TEMPLATES[component.type];
-  const varName = generateComponentVarName(component.type, index);
-  
+
   // 如果没有模板，返回占位符
   if (!template) {
     return `// Unknown component type: ${component.type}`;
   }
-  
+
   const { componentName, isContainer, childHandling } = template;
   const props = component.props || {};
   
@@ -352,6 +381,193 @@ export const ${hookName} = () => {
 }
 
 // ============================================================
+// 事件绑定代码生成
+// ============================================================
+
+interface EventBinding {
+  id: string;
+  componentId: string;
+  eventType: string;
+  enabled?: boolean;
+  condition?: string;
+  actions: Array<{
+    type: string;
+    config: Record<string, unknown>;
+    delay?: number;
+  }>;
+}
+
+function generateEventBindingCode(componentId: string, bindings: EventBinding[]): string {
+  if (!bindings || bindings.length === 0) return '';
+
+  const eventImports = new Set<string>([
+    "import { message } from 'antd';",
+    "import { useNavigate } from 'react-router-dom';",
+  ]);
+
+  const handlers: string[] = [];
+
+  bindings.forEach((binding) => {
+    if (binding.enabled === false) return;
+
+    const conditionCheck = binding.condition
+      ? `if (!(${binding.condition})) return;`
+      : '';
+
+    const actionHandlers = binding.actions.map((action) => {
+      const delayStr = action.delay && action.delay > 0 ? `await new Promise(r => setTimeout(r, ${action.delay}));` : '';
+
+      switch (action.type) {
+        case 'showMessage': {
+          const msgType = (action.config.type as string) || 'success';
+          const content = (action.config.content as string) || '';
+          return `${delayStr}message.${msgType}('${content.replace(/'/g, "\\'")}');`;
+        }
+        case 'navigate': {
+          const path = (action.config.path as string) || '/';
+          const newTab = action.config.openInNewTab ? `window.open('${path}', '_blank');` : `navigate('${path}');`;
+          return `${delayStr}${newTab}`;
+        }
+        case 'setValue':
+          return `${delayStr}// setValue: ${JSON.stringify(action.config)}`;
+        case 'callApi':
+          return `${delayStr}// callApi: ${action.config.url || ''} ${action.config.method || 'GET'}`;
+        case 'showModal':
+          return `${delayStr}// showModal: ${action.config.modalId || ''}`;
+        case 'hideModal':
+          return `${delayStr}// hideModal: ${action.config.modalId || ''}`;
+        case 'download': {
+          const url = (action.config.url as string) || '';
+          const filename = (action.config.filename as string) || 'download';
+          return `${delayStr}// download: ${url} -> ${filename}`;
+        }
+        case 'triggerEvent':
+          return `${delayStr}// triggerEvent: ${action.config.eventName || ''}`;
+        case 'script': {
+          const script = (action.config.script as string) || '';
+          return `${delayStr}// script: ${script}`;
+        }
+        default:
+          return `${delayStr}// action: ${action.type}`;
+      }
+    });
+
+    const isAsync = binding.actions.some(a => a.delay && a.delay > 0);
+    const asyncPrefix = isAsync ? 'async ' : '';
+
+    handlers.push(`  const handle${capitalizeFirst(binding.eventType)} = ${asyncPrefix}() => {
+    ${conditionCheck}
+    ${actionHandlers.join('\n    ')}
+  };`);
+  });
+
+  if (handlers.length === 0) return '';
+
+  return [...eventImports].join('\n') + '\n\n' + handlers.join('\n\n');
+}
+
+// ============================================================
+// 逻辑流代码生成
+// ============================================================
+
+interface LogicFlow {
+  id: string;
+  name: string;
+  trigger: string;
+  nodes: Array<{
+    id: string;
+    type: string;
+    subtype: string;
+    label: string;
+    config: Record<string, unknown>;
+  }>;
+  connections: Array<{
+    id: string;
+    source: string;
+    target: string;
+    condition?: string;
+  }>;
+}
+
+function generateLogicFlowCode(flows: Record<string, LogicFlow>): string {
+  const entries = Object.entries(flows);
+  if (entries.length === 0) return '';
+
+  const imports = new Set<string>([
+    "import { useEffect } from 'react';",
+    "import { message } from 'antd';",
+  ]);
+
+  const flowImplementations: string[] = [];
+
+  entries.forEach(([flowId, flow]) => {
+    const triggerHandlers: string[] = [];
+    const flowName = flow.name || flowId;
+
+    (flow.nodes || []).forEach((node) => {
+      switch (node.subtype) {
+        case 'onClick':
+          triggerHandlers.push(`// ${flowName}: ${node.label} (${node.type})`);
+          break;
+        case 'onChange':
+        case 'onSubmit':
+        case 'onLoad':
+        case 'onMounted':
+        case 'onTimer':
+          triggerHandlers.push(`// ${flowName}: ${node.label} (${node.subtype})`);
+          break;
+        case 'showMessage': {
+          const content = (node.config.content as string) || '';
+          const msgType = (node.config.type as string) || 'success';
+          triggerHandlers.push(`  message.${msgType}('${content.replace(/'/g, "\\'")}');`);
+          break;
+        }
+        case 'callApi': {
+          const url = (node.config.url as string) || '';
+          const method = (node.config.method as string) || 'GET';
+          triggerHandlers.push(`  // API ${method} ${url}`);
+          break;
+        }
+        case 'navigate': {
+          const path = (node.config.path as string) || '/';
+          triggerHandlers.push(`  // navigate to ${path}`);
+          break;
+        }
+        case 'condition': {
+          const expr = (node.config.expression as string) || 'true';
+          triggerHandlers.push(`  if (${expr}) { /* true branch */ }`);
+          break;
+        }
+        case 'setValue':
+        case 'showModal':
+        case 'hideModal':
+        case 'download':
+        case 'upload':
+        case 'getVariable':
+        case 'setVariable':
+        case 'transform':
+        case 'filter':
+        case 'sort':
+        case 'aggregate':
+          triggerHandlers.push(`  // ${node.label}: ${node.subtype}`);
+          break;
+        default:
+          triggerHandlers.push(`  // ${node.label}`);
+      }
+    });
+
+    flowImplementations.push(`/**
+ * ${flowName} Logic Flow
+ */`);
+    if (triggerHandlers.length > 0) {
+      flowImplementations.push(`const execute${flowName.replace(/\s+/g, '')}Flow = () => {\n${triggerHandlers.join('\n')}\n};`);
+    }
+  });
+
+  return [...imports].join('\n') + '\n\n' + flowImplementations.join('\n\n');
+}
+
+// ============================================================
 // 主文件生成
 // ============================================================
 
@@ -385,14 +601,31 @@ function generateMainPageCode(schema: PageSchema, options: CodeGenOptions): stri
         .join('\n\n')
     : '      <div style={{ textAlign: \'center\', color: \'#999\', padding: 40 }}>\n        页面内容为空\n      </div>';
   
-  const typeScriptSuffix = useTypeScript ? '.tsx' : '.jsx';
-  
+  // typeScriptSuffix reserved for future file extension handling
+  void useTypeScript;
+
   // 生成数据源相关代码
   const dataSourceCode = generateDataSourceCode(schema.dataSources);
   
+  // 生成事件绑定代码
+  const allBindings: EventBinding[] = [];
+  schema.page.components.forEach(comp => {
+    if (comp.events && (comp.events as any).bindings) {
+      (comp.events as any).bindings.forEach((b: EventBinding) => {
+        allBindings.push({ ...b, componentId: comp.id });
+      });
+    }
+  });
+  const eventBindingCode = generateEventBindingCode('page', allBindings);
+
+  // 生成逻辑流代码
+  const logicFlowCode = generateLogicFlowCode((schema as any).logic || {});
+
   return `${[...componentImports].join('\n')}
 ${[...usedComponents].join('\n')}
 ${dataSourceCode ? dataSourceCode + '\n' : ''}
+${eventBindingCode ? eventBindingCode + '\n' : ''}
+${logicFlowCode ? logicFlowCode + '\n' : ''}
 
 /**
  * ${schema.page.title} - 页面组件
@@ -424,8 +657,6 @@ export default ${kebabToPascalCase(pageName)}Page;
 // ============================================================
 
 function generatePackageJson(options: CodeGenOptions, dependencies: string[]): string {
-  const deps = dependencies.map(dep => `"${dep}": "^5.0.0"`).join(',\n    ');
-  
   return JSON.stringify({
     name: options.projectName.toLowerCase().replace(/\s+/g, '-'),
     version: '1.0.0',
@@ -480,7 +711,7 @@ function generateTsConfig(): string {
 function generateTsNodeConfig(): string {
   return JSON.stringify({
     compilerOptions: {
-      com十posit: true,
+      composite: true,
       module: 'ESNext',
       moduleResolution: 'bundler',
       allowSyntheticDefaultImports: true
@@ -570,7 +801,7 @@ ${schema.page.description ? `- **页面描述**: ${schema.page.description}` : '
 ## 组件列表
 
 ${schema.page.components.length > 0
-  ? schema.page.components.map((comp, i) => `- ${comp.label || comp.type} (${comp.type})`).join('\n')
+  ? schema.page.components.map((comp) => `- ${comp.label || comp.type} (${comp.type})`).join('\n')
   : '- 无'
 }
 
@@ -734,8 +965,6 @@ export function generateZipContent(result: CodeGenResult): Map<string, string> {
  * 生成单文件预览代码
  */
 export function generatePreviewCode(schema: PageSchema, options: CodeGenOptions): string {
-  const pageCode = generateMainPageCode(schema, options);
-  
   return `<!--
   ${schema.page.title} - 预览代码
   由低代码平台自动生成

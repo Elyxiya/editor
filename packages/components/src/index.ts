@@ -14,6 +14,7 @@ import { LcTable } from './business/Table';
 import { LcModal } from './business/Modal';
 import { LcTabs } from './business/Tabs';
 import { LcDivider } from './business/Divider';
+import { LcBadge, LcTag, LcAvatar, LcProgress, LcStatistic, LcSkeleton } from './advanced';
 
 export * from './basic/Button';
 export * from './basic/Input';
@@ -29,6 +30,7 @@ export * from './business/Table';
 export * from './business/Modal';
 export * from './business/Tabs';
 export * from './business/Divider';
+export * from './advanced';
 export * from './registry';
 
 type ComponentWithMeta = {
@@ -52,6 +54,13 @@ const allComponents: Array<{ meta: ComponentMeta; component: React.ComponentType
   { meta: (LcModal as unknown as ComponentWithMeta).meta, component: LcModal },
   { meta: (LcTabs as unknown as ComponentWithMeta).meta, component: LcTabs },
   { meta: (LcDivider as unknown as ComponentWithMeta).meta, component: LcDivider },
+  // 高级组件
+  { meta: (LcBadge as unknown as ComponentWithMeta).meta, component: LcBadge },
+  { meta: (LcTag as unknown as ComponentWithMeta).meta, component: LcTag },
+  { meta: (LcAvatar as unknown as ComponentWithMeta).meta, component: LcAvatar },
+  { meta: (LcProgress as unknown as ComponentWithMeta).meta, component: LcProgress },
+  { meta: (LcStatistic as unknown as ComponentWithMeta).meta, component: LcStatistic },
+  { meta: (LcSkeleton as unknown as ComponentWithMeta).meta, component: LcSkeleton },
 ];
 
 allComponents.forEach(({ meta }) => {

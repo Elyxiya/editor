@@ -6,7 +6,7 @@ const { Header, Sider, Content } = Layout;
 
 export const EditorLayout: React.FC = () => {
   const {
-    token: { colorBgContainer, borderRadiusLG },
+    token: { colorBgContainer },
   } = theme.useToken();
 
   return (

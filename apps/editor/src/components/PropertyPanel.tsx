@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
-import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider } from 'antd';
+import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider, Alert } from 'antd';
 import { useEditorStore } from '@/store/editorStore';
 import { findComponentById } from '@lowcode/schema';
 import { getComponentMeta } from '@lowcode/components';
 import type { PropSchema } from '@lowcode/types';
+import { EventBindingPanel } from './EventBindingPanel';
+import type { EventBinding } from '@lowcode/events';
 
 export const PropertyPanel: React.FC = () => {
   const { schema, selectedId, updateComponent } = useEditorStore();
@@ -17,6 +19,14 @@ export const PropertyPanel: React.FC = () => {
     if (!selectedComponent) return null;
     return getComponentMeta(selectedComponent.type);
   }, [selectedComponent]);
+
+  const componentBindings = useMemo((): EventBinding[] => {
+    return (selectedComponent?.events?.bindings || []) as EventBinding[];
+  }, [selectedComponent]);
+
+  const handleBindingsChange = (bindings: EventBinding[]) => {
+    updateComponent(selectedId!, { events: { bindings } });
+  };
 
   if (!selectedComponent) {
     return (
@@ -33,7 +43,6 @@ export const PropertyPanel: React.FC = () => {
   const basicProps = componentMeta?.propSchema.filter((p) => p.group === 'basic' || !p.group);
   const styleProps = componentMeta?.propSchema.filter((p) => p.group === 'style');
   const dataProps = componentMeta?.propSchema.filter((p) => p.group === 'data');
-  const eventList = componentMeta?.eventSchema || [];
 
   const renderFormItem = (prop: PropSchema) => {
     const value = selectedComponent.props[prop.name] ?? prop.defaultValue;
@@ -159,30 +168,20 @@ export const PropertyPanel: React.FC = () => {
       label: '事件',
       children: (
         <div style={{ padding: '0 12px' }}>
-          {eventList.length === 0 ? (
-            <div style={{ color: '#999', textAlign: 'center', padding: '24px 0' }}>
-              该组件暂无事件配置
-            </div>
-          ) : (
-            eventList.map((event) => (
-              <div key={event.name} style={{ marginBottom: 16 }}>
-                <div style={{ marginBottom: 8, fontWeight: 500 }}>{event.label}</div>
-                <Input.TextArea
-                  placeholder={`${event.description || ''}\n例如: console.log('click')`}
-                  rows={3}
-                  onChange={(e) => {
-                    const events = selectedComponent.events || {};
-                    if (e.target.value) {
-                      handlePropChange('events', { ...events, [event.name]: e.target.value });
-                    }
-                  }}
-                />
-                <div style={{ marginTop: 4, fontSize: 12, color: '#999' }}>
-                  {event.description}
-                </div>
-              </div>
-            ))
-          )}
+          <Alert
+            message="事件绑定"
+            description="为组件的交互事件绑定对应的动作响应，支持条件判断和多动作串联。"
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+          />
+          <EventBindingPanel
+            componentType={selectedComponent.type}
+            componentId={selectedComponent.id}
+            componentName={componentMeta?.label}
+            bindings={componentBindings}
+            onChange={handleBindingsChange}
+          />
         </div>
       ),
     },

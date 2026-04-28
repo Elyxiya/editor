@@ -6,20 +6,50 @@
   "packageManager": "pnpm@10.33.2",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
+    "dev:editor": "pnpm --filter @lowcode/editor dev",
+    "dev:renderer": "pnpm --filter @lowcode/renderer dev",
     "build": "pnpm -r build",
+    "build:packages": "pnpm --filter './packages/*' build",
+    "build:editor": "pnpm --filter @lowcode/editor build",
+    "build:renderer": "pnpm --filter @lowcode/renderer build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "format": "pnpm -r format",
-    "preview": "pnpm -r preview"
+    "preview": "pnpm -r preview",
+    "clean": "pnpm -r exec rm -rf dist node_modules",
+    "typecheck": "pnpm -r exec tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@types/uuid": "^9.0.0",
     "eslint": "^8.56.0",
     "prettier": "^3.2.4",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0",
+    "ajv": "^8.12.0",
+    "ajv-formats": "^2.1.1"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "typescript": "^5.3.3"
+    },
+    "packageExtensions": [
+      {
+        "selector": "@lowcode/logic-engine",
+        "addDependencies": {
+          "uuid": "^9.0.0"
+        }
+      },
+      {
+        "selector": "@lowcode/events",
+        "addDependencies": {
+          "uuid": "^9.0.0"
+        }
+      }
+    ]
   },
   "dependencies": {
     "immer": "^11.1.4"

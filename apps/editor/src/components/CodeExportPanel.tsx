@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Modal, Tabs, Button, message, Empty, Collapse, Typography, Space, Tag } from 'antd';
+import { Modal, Button, message, Empty, Collapse, Typography, Space, Tag } from 'antd';
 import {
   CopyOutlined, DownloadOutlined, FileTextOutlined, BranchesOutlined,
-  EyeOutlined, CheckOutlined, FileZipOutlined
+  CheckOutlined, FileZipOutlined
 } from '@ant-design/icons';
 import type { PageSchema, Page } from '@lowcode/types';
 import { generateCode, type CodeGenOptions } from '@lowcode/codegen';
@@ -55,7 +55,6 @@ export const CodeExportPanel: React.FC<CodeExportPanelProps> = ({
   const mainFile = files.find(f => f.path.endsWith('.tsx') && f.path.includes('/pages/'));
   const configFiles = files.filter(f => ['package.json', 'tsconfig.json', 'vite.config.ts', 'index.html'].includes(f.path.split('/').pop() || ''));
   const styleFiles = files.filter(f => f.path.endsWith('.css'));
-  const docFiles = files.filter(f => f.path.endsWith('.md'));
 
   // 复制代码到剪贴板
   const handleCopy = async (file: GeneratedFile) => {
@@ -195,7 +194,7 @@ export const CodeExportPanel: React.FC<CodeExportPanelProps> = ({
     );
   };
 
-  const fileListItems = files.map((file, index) => {
+  const fileListItems = files.map((file) => {
     const isActive = activeFile === file.path;
     const isMain = file.path === mainFile?.path;
 

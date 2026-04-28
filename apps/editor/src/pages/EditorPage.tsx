@@ -20,8 +20,8 @@ const smartCollisionDetection: CollisionDetection = (args) => {
 
   // Sort by area ascending → smallest element wins (most specific)
   const sorted = [...collisions].sort((a, b) => {
-    const ra = (a.rect?.rect) ?? { width: Infinity, height: Infinity };
-    const rb = (b.rect?.rect) ?? { width: Infinity, height: Infinity };
+    const ra = ((a as any).rect?.rect) ?? { width: Infinity, height: Infinity };
+    const rb = ((b as any).rect?.rect) ?? { width: Infinity, height: Infinity };
     return (ra.width * ra.height) - (rb.width * rb.height);
   });
 
@@ -70,13 +70,6 @@ export const EditorPage: React.FC = () => {
     const activeData = active.data.current;
     const overData = over.data.current;
 
-    console.log('[DEBUG dragEnd]', {
-      activeId: String(active.id),
-      overId: String(over.id),
-      overData,
-      overContainerId,
-    });
-
     const resolveTarget = (): { targetId: string | null; position: 'before' | 'after' | 'inside' } => {
       const overId = String(over.id);
 
@@ -96,8 +89,6 @@ export const EditorPage: React.FC = () => {
     };
 
     const { targetId, position } = resolveTarget();
-
-    console.log('[DEBUG resolved]', { targetId, position });
 
     if (activeData?.type === 'component') {
       addComponent(activeData.componentType, targetId, position);

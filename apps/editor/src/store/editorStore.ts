@@ -128,7 +128,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     saveSnapshot: () =>
       set((state) => {
-        const { past, present, future } = state.history;
+        const { past, present } = state.history;
         const newPast = [...past, present].slice(-MAX_HISTORY);
         state.history = {
           past: newPast,
@@ -170,9 +170,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }),
 
     addComponent: (componentType, targetId, position) => {
-      // #region agent log
-      console.log('[DEBUG store addComponent]', { componentType, targetId, position });
-      // #endregion
       const meta = getComponentMeta(componentType);
       if (!meta) return;
 
@@ -193,14 +190,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           newComponent,
           position
         );
-        // #region agent log
-        console.log('[DEBUG after insertComponent]', {
-          targetId,
-          position,
-          resultCount: state.schema.page.components.length,
-          allIds: state.schema.page.components.map(c => c.id),
-        });
-        // #endregion
         state.selectedId = newComponent.id;
         state.isDirty = true;
       });

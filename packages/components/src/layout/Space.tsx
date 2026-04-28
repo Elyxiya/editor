@@ -5,7 +5,7 @@ import type { ComponentProps } from '@lowcode/types';
 
 export { SpaceMeta };
 
-export function getSpaceStyles(props: Record<string, unknown>): React.CSSProperties {
+export function getSpaceStyles(_props: Record<string, unknown>): React.CSSProperties {
   return {};
 }
 
