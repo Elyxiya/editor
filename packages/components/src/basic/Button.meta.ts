@@ -107,10 +107,3 @@ export const ButtonMeta: ComponentMeta = {
     { name: 'padding', label: '内边距', type: 'string', defaultValue: '0' },
   ],
 };
-
-export function getButtonStyles(props: Record<string, unknown>): React.CSSProperties {
-  return {
-    margin: (props.margin as string) || '0',
-    padding: (props.padding as string) || '0',
-  };
-}

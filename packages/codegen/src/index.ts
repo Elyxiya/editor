@@ -124,6 +124,21 @@ const COMPONENT_TEMPLATES: Record<string, ComponentTemplate> = {
     componentName: 'Skeleton',
     isContainer: false,
   },
+  LineChart: {
+    importStatement: "import { LineChart } from '@/components/chart/LineChart';",
+    componentName: 'LineChart',
+    isContainer: false,
+  },
+  BarChart: {
+    importStatement: "import { BarChart } from '@/components/chart/BarChart';",
+    componentName: 'BarChart',
+    isContainer: false,
+  },
+  PieChart: {
+    importStatement: "import { PieChart } from '@/components/chart/PieChart';",
+    componentName: 'PieChart',
+    isContainer: false,
+  },
 };
 
 // ============================================================
@@ -186,7 +201,7 @@ function capitalizeFirst(str: string): string {
 /**
  * 生成唯一的组件变量名
  */
-function generateComponentVarName(type: string, index: number): string {
+function _generateComponentVarName(type: string, index: number): string {
   return `${kebabToCamelCase(type)}${index > 0 ? index : ''}`;
 }
 
@@ -240,7 +255,7 @@ function propsToJSX(props: Record<string, unknown>, indent: string = '  '): stri
 
 function generateComponentCode(
   component: PageComponent,
-  index: number,
+  _index: number,
   options: CodeGenOptions
 ): string {
   const template = COMPONENT_TEMPLATES[component.type];
@@ -262,18 +277,51 @@ function generateComponentCode(
       .map((child, childIndex) => generateComponentCode(child, childIndex, options))
       .filter(Boolean)
       .join('\n\n');
-    
+
     return `<${componentName}${propsStr}>\n  ${childrenCode}\n</${componentName}>`;
   }
-  
+
   // 处理自闭合标签
   if (!isContainer || !component.children || component.children.length === 0) {
-    // 某些组件如 Image 需要 children 参数
-    if (componentName === 'Typography.Text' || componentName === 'Image') {
-      const text = props.text || props.src || props.children || component.label || '';
+    // Tag 标签组件需要 children
+    if (componentName === 'Tag') {
+      const text = props.children || props.text || '标签';
       return `<${componentName}${propsStr}>${text}</${componentName}>`;
     }
-    
+
+    // Statistic 统计组件（Ant Design 5 直接使用 props）
+    if (componentName === 'Statistic') {
+      const title = props.title || '统计值';
+      const value = props.value !== undefined ? String(props.value) : '0';
+      const suffix = props.suffix ? props.suffix : '';
+      const precision = props.precision !== undefined ? ` precision={${props.precision}}` : '';
+      return `<Statistic title="${title}" value="${value}"${suffix ? ` suffix="${suffix}"` : ''}${precision} />`;
+    }
+
+    // Avatar 头像组件
+    if (componentName === 'Avatar') {
+      const src = props.src;
+      if (src) {
+        return `<${componentName}${propsStr} />`;
+      }
+      return `<${componentName}${propsStr}>头像</${componentName}>`;
+    }
+
+    // Typography.Text 需要 children
+    if (componentName === 'Typography.Text') {
+      const text = props.text || props.children || component.label || '';
+      return `<${componentName}${propsStr}>${text}</${componentName}>`;
+    }
+
+    // Image 需要 fallback
+    if (componentName === 'Image') {
+      const src = props.src || props.srcSet;
+      if (src) {
+        return `<${componentName}${propsStr} />`;
+      }
+      return `<${componentName}${propsStr} fallback="https://via.placeholder.com/200" />`;
+    }
+
     if (componentName === 'div') {
       if (component.children && component.children.length > 0) {
         const childrenCode = component.children
@@ -284,14 +332,14 @@ function generateComponentCode(
       }
       return `<div${propsStr} />`;
     }
-    
+
     // 特殊处理 Card 组件
     if (componentName === 'Card' && !props.title && !props.children) {
       const cardProps: Record<string, unknown> = { ...props };
       delete cardProps.title;
       return `<Card${propsToJSX(cardProps)}><div>Card Content</div></Card>`;
     }
-    
+
     return `<${componentName}${propsStr} />`;
   }
   
@@ -397,7 +445,7 @@ interface EventBinding {
   }>;
 }
 
-function generateEventBindingCode(componentId: string, bindings: EventBinding[]): string {
+function generateEventBindingCode(_componentId: string, bindings: EventBinding[]): string {
   if (!bindings || bindings.length === 0) return '';
 
   const eventImports = new Set<string>([
@@ -870,6 +918,10 @@ export function generateCode(schema: PageSchema, options: CodeGenOptions): CodeG
   // 收集依赖
   usedComponentTypes.forEach(type => {
     if (type === 'Table') dependencies.add('dayjs');
+    if (type === 'LineChart' || type === 'BarChart' || type === 'PieChart') {
+      dependencies.add('echarts');
+      dependencies.add('echarts-for-react');
+    }
   });
   
   // 收集数据源依赖
@@ -940,7 +992,34 @@ export function generateCode(schema: PageSchema, options: CodeGenOptions): CodeG
     content: generateReadme(schema, options),
     language: 'md'
   });
-  
+
+  // 生成图表组件文件
+  const hasChart = usedComponentTypes.has('LineChart') ||
+    usedComponentTypes.has('BarChart') ||
+    usedComponentTypes.has('PieChart');
+  if (hasChart) {
+    files.push({
+      path: 'src/components/chart/LineChart.tsx',
+      content: generateLineChartComponent(),
+      language: 'tsx',
+    });
+    files.push({
+      path: 'src/components/chart/BarChart.tsx',
+      content: generateBarChartComponent(),
+      language: 'tsx',
+    });
+    files.push({
+      path: 'src/components/chart/PieChart.tsx',
+      content: generatePieChartComponent(),
+      language: 'tsx',
+    });
+    files.push({
+      path: 'src/components/chart/index.ts',
+      content: "export { LineChart } from './LineChart';\nexport { BarChart } from './BarChart';\nexport { PieChart } from './PieChart';\n",
+      language: 'ts',
+    });
+  }
+
   return {
     files,
     dependencies: [...dependencies],
@@ -964,7 +1043,7 @@ export function generateZipContent(result: CodeGenResult): Map<string, string> {
 /**
  * 生成单文件预览代码
  */
-export function generatePreviewCode(schema: PageSchema, options: CodeGenOptions): string {
+export function generatePreviewCode(schema: PageSchema, _options: CodeGenOptions): string {
   return `<!--
   ${schema.page.title} - 预览代码
   由低代码平台自动生成
@@ -1018,7 +1097,7 @@ function optimizeComponent(component: PageComponent): PageComponent {
   const optimizedChildren = component.children?.length
     ? component.children.map(optimizeComponent)
     : undefined;
-  
+
   return {
     ...component,
     children: optimizedChildren,
@@ -1027,4 +1106,151 @@ function optimizeComponent(component: PageComponent): PageComponent {
       Object.entries(component.props || {}).filter(([_, v]) => v !== undefined)
     )
   };
+}
+
+// ============================================================
+// 图表组件代码生成
+// ============================================================
+
+function generateLineChartComponent(): string {
+  return `import React, { useCallback } from 'react';
+import ReactECharts from 'echarts-for-react';
+
+interface LineChartProps {
+  title?: string;
+  xAxisData?: string[];
+  seriesData?: number[];
+  seriesName?: string;
+  color?: string;
+  smooth?: boolean;
+  showArea?: boolean;
+  style?: React.CSSProperties;
+  className?: string;
+}
+
+export const LineChart: React.FC<LineChartProps> = ({
+  title,
+  xAxisData = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+  seriesData = [820, 932, 901, 934, 1290, 1330, 1320],
+  seriesName = '数据',
+  color = '#1677ff',
+  smooth = false,
+  showArea = false,
+  style,
+  className,
+}) => {
+  const getOption = useCallback(() => ({
+    title: { text: title || '', left: 'center', textStyle: { fontSize: 14, fontWeight: 500 } },
+    tooltip: { trigger: 'axis' },
+    grid: { left: '10%', right: '10%', bottom: '15%', top: title ? '20%' : '10%' },
+    xAxis: { type: 'category', data: xAxisData, boundaryGap: false, axisLabel: { fontSize: 11, color: '#666' } },
+    yAxis: { type: 'value', axisLabel: { fontSize: 11, color: '#666' } },
+    series: [{
+      name: seriesName, type: 'line', data: seriesData, smooth,
+      symbol: 'circle', symbolSize: 6,
+      lineStyle: { color, width: 2 },
+      itemStyle: { color },
+      areaStyle: showArea ? { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: color + '40' }, { offset: 1, color: color + '05' }] } } : undefined,
+    }],
+  }), [title, xAxisData, seriesData, seriesName, color, smooth, showArea]);
+
+  return <ReactECharts option={getOption()} style={{ width: '100%', height: '100%', minHeight: 280, ...style }} className={className} opts={{ renderer: 'canvas' }} />;
+};
+`;
+}
+
+function generateBarChartComponent(): string {
+  return `import React, { useCallback } from 'react';
+import ReactECharts from 'echarts-for-react';
+
+interface BarChartProps {
+  title?: string;
+  xAxisData?: string[];
+  seriesData?: number[];
+  seriesName?: string;
+  color?: string;
+  horizontal?: boolean;
+  showLabel?: boolean;
+  style?: React.CSSProperties;
+  className?: string;
+}
+
+export const BarChart: React.FC<BarChartProps> = ({
+  title,
+  xAxisData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  seriesData = [120, 200, 150, 80, 70, 110, 130],
+  seriesName = '数据',
+  color = '#1677ff',
+  horizontal = false,
+  showLabel = true,
+  style,
+  className,
+}) => {
+  const getOption = useCallback(() => ({
+    title: { text: title || '', left: 'center', textStyle: { fontSize: 14, fontWeight: 500 } },
+    tooltip: { trigger: 'axis' },
+    grid: { left: horizontal ? '15%' : '10%', right: '10%', bottom: '15%', top: title ? '20%' : '10%' },
+    xAxis: horizontal ? { type: 'value', axisLabel: { fontSize: 11, color: '#666' } } : { type: 'category', data: xAxisData, axisLabel: { fontSize: 11, color: '#666' } },
+    yAxis: horizontal ? { type: 'category', data: xAxisData, axisLabel: { fontSize: 11, color: '#666' } } : { type: 'value', axisLabel: { fontSize: 11, color: '#666' } },
+    series: [{
+      name: seriesName, type: 'bar', data: seriesData,
+      itemStyle: { color, borderRadius: horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0] },
+      label: showLabel ? { show: true, position: horizontal ? 'right' : 'top', fontSize: 11 } : undefined,
+      barMaxWidth: 40,
+    }],
+  }), [title, xAxisData, seriesData, seriesName, color, horizontal, showLabel]);
+
+  return <ReactECharts option={getOption()} style={{ width: '100%', height: '100%', minHeight: 280, ...style }} className={className} opts={{ renderer: 'canvas' }} />;
+};
+`;
+}
+
+function generatePieChartComponent(): string {
+  return `import React, { useCallback } from 'react';
+import ReactECharts from 'echarts-for-react';
+
+interface PieDataItem { name: string; value: number; }
+
+interface PieChartProps {
+  title?: string;
+  data?: PieDataItem[];
+  colors?: string[];
+  showLegend?: boolean;
+  roseType?: boolean;
+  radius?: string;
+  style?: React.CSSProperties;
+  className?: string;
+}
+
+const DEFAULT_COLORS = ['#1677ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16'];
+
+export const PieChart: React.FC<PieChartProps> = ({
+  title,
+  data = [{ name: '类目一', value: 1048 }, { name: '类目二', value: 735 }, { name: '类目三', value: 580 }, { name: '类目四', value: 484 }, { name: '类目五', value: 300 }],
+  colors = DEFAULT_COLORS,
+  showLegend = true,
+  roseType = false,
+  radius = '65%',
+  style,
+  className,
+}) => {
+  const getOption = useCallback(() => ({
+    title: { text: title || '', left: 'center', textStyle: { fontSize: 14, fontWeight: 500 } },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { show: showLegend, bottom: 0, type: 'scroll', textStyle: { fontSize: 11, color: '#666' } },
+    series: [{
+      name: '数据', type: 'pie',
+      radius: roseType ? ['20%', '75%'] : radius,
+      center: ['50%', '45%'],
+      roseType: roseType ? 'radius' : undefined,
+      itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, fontSize: 11, color: '#666', formatter: '{b}: {d}%' },
+      emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' }, itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' } },
+      data: data.map((item, index) => ({ ...item, itemStyle: { color: colors[index % colors.length] } })),
+    }],
+  }), [title, data, colors, showLegend, roseType, radius]);
+
+  return <ReactECharts option={getOption()} style={{ width: '100%', height: '100%', minHeight: 280, ...style }} className={className} opts={{ renderer: 'canvas' }} />;
+};
+`;
 }

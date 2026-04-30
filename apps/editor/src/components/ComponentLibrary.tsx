@@ -48,12 +48,13 @@ const categoryLabels: Record<string, string> = {
 
 export const ComponentLibrary: React.FC = () => {
   const [search, setSearch] = useState('');
-  const [activeKeys, setActiveKeys] = useState<string[]>(['layout', 'basic', 'business']);
+  const [activeKeys, setActiveKeys] = useState<string[]>(['layout', 'basic', 'business', 'chart']);
 
   const categories = [
     { key: 'layout', label: categoryLabels.layout, components: getComponentsByCategory('layout') },
     { key: 'basic', label: categoryLabels.basic, components: getComponentsByCategory('basic') },
     { key: 'business', label: categoryLabels.business, components: getComponentsByCategory('business') },
+    { key: 'chart', label: categoryLabels.chart, components: getComponentsByCategory('chart') },
   ];
 
   const filteredCategories = categories.map((cat) => ({

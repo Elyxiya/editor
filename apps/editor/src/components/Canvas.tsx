@@ -8,7 +8,7 @@ import { DEVICE_WIDTHS } from '@lowcode/utils';
 import styles from './Canvas.module.css';
 
 export const Canvas: React.FC = () => {
-  const { schema, selectedId, device, zoom, selectComponent } = useEditorStore();
+  const { schema, selectedId, device, selectComponent } = useEditorStore();
   const { setNodeRef: setCanvasRef, isOver: isCanvasOver } = useDroppable({ id: 'canvas' });
 
   const componentIds = useMemo(
@@ -30,10 +30,8 @@ export const Canvas: React.FC = () => {
         ref={setCanvasRef}
         className={`${styles.canvas} ${isCanvasOver ? styles.dragOver : ''}`}
         style={{
-          width: canvasWidth * zoom,
+          width: canvasWidth,
           minHeight: 600,
-          transform: `scale(${1 / zoom})`,
-          transformOrigin: 'top center',
         }}
       >
         <div className={styles.canvasHeader}>

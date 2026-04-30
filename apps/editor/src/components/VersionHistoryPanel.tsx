@@ -84,7 +84,6 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
         comment: '回滚目标版本'
       }, ...prev.slice(1)]);
       // 通知父组件更新
-      const schema = JSON.parse(versions.find(v => v.version === version.version)?.schema || '{}');
       onRollback(result.data.schema, result.data.version);
     } catch {
       message.error('回滚失败');

@@ -13,6 +13,7 @@ interface HistoryState {
 interface EditorState {
   schema: PageSchema;
   selectedId: string | null;
+  selectedIds: string[];
   hoveredId: string | null;
   activeId: string | null;
   overContainerId: string | null;
@@ -29,6 +30,8 @@ interface EditorActions {
   setSchema: (schema: PageSchema) => void;
   updatePageTitle: (title: string) => void;
   selectComponent: (id: string | null) => void;
+  toggleComponentSelection: (id: string) => void;
+  clearSelection: () => void;
   hoverComponent: (id: string | null) => void;
   setActiveId: (id: string | null) => void;
   setOverContainerId: (id: string | null) => void;
@@ -46,6 +49,9 @@ interface EditorActions {
   copyComponent: (id: string) => void;
   cutComponent: (id: string) => void;
 
+  alignComponents: (direction: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
+  distributeComponents: (direction: 'horizontal' | 'vertical') => void;
+
   undo: () => void;
   redo: () => void;
   saveSnapshot: () => void;
@@ -59,6 +65,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
   immer((set, get) => ({
     schema: createEmptyPageSchema('未命名页面'),
     selectedId: null,
+    selectedIds: [],
     hoveredId: null,
     activeId: null,
     overContainerId: null,
@@ -89,6 +96,25 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     selectComponent: (id) =>
       set((state) => {
         state.selectedId = id;
+        state.selectedIds = id ? [id] : [];
+      }),
+
+    toggleComponentSelection: (id) =>
+      set((state) => {
+        const idx = state.selectedIds.indexOf(id);
+        if (idx >= 0) {
+          state.selectedIds.splice(idx, 1);
+        } else {
+          state.selectedIds.push(id);
+        }
+        state.selectedIds = [...state.selectedIds];
+        state.selectedId = state.selectedIds.length > 0 ? state.selectedIds[state.selectedIds.length - 1] : null;
+      }),
+
+    clearSelection: () =>
+      set((state) => {
+        state.selectedId = null;
+        state.selectedIds = [];
       }),
 
     hoverComponent: (id) =>
@@ -297,6 +323,124 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         if (state.selectedId === id) {
           state.selectedId = null;
         }
+        state.isDirty = true;
+      });
+    },
+
+    alignComponents: (direction) => {
+      const { selectedIds } = get();
+      if (selectedIds.length < 2) return;
+
+      get().saveSnapshot();
+
+      const components = selectedIds
+        .map((id) => findComponentById(get().schema.page.components, id))
+        .filter(Boolean) as PageComponent[];
+
+      const props = components.map((c) => c.props?.style || {});
+      const widths = props.map((p) => (p.width as number) || 120);
+      const heights = props.map((p) => (p.height as number) || 40);
+
+      let targetValue: number;
+      switch (direction) {
+        case 'left':
+          targetValue = Math.min(...props.map((p) => (p.marginLeft as number) || 0));
+          break;
+        case 'right':
+          targetValue = Math.max(...props.map((p, i) => ((p.marginLeft as number) || 0) + widths[i]));
+          break;
+        case 'center':
+          targetValue = props.reduce((sum, p, i) => sum + ((p.marginLeft as number) || 0) + widths[i] / 2, 0) / props.length;
+          break;
+        case 'top':
+          targetValue = Math.min(...props.map((p) => (p.marginTop as number) || 0));
+          break;
+        case 'bottom':
+          targetValue = Math.max(...props.map((p, i) => ((p.marginTop as number) || 0) + heights[i]));
+          break;
+        case 'middle':
+          targetValue = props.reduce((sum, p, i) => sum + ((p.marginTop as number) || 0) + heights[i] / 2, 0) / props.length;
+          break;
+        default:
+          return;
+      }
+
+      set((state) => {
+        selectedIds.forEach((id, i) => {
+          const comp = findComponentById(state.schema.page.components, id);
+          if (!comp) return;
+          const p = comp.props?.style || {};
+          switch (direction) {
+            case 'left':
+              Object.assign(p, { marginLeft: targetValue });
+              break;
+            case 'right':
+              Object.assign(p, { marginLeft: targetValue - widths[i] });
+              break;
+            case 'center':
+              Object.assign(p, { marginLeft: targetValue - widths[i] / 2 });
+              break;
+            case 'top':
+              Object.assign(p, { marginTop: targetValue });
+              break;
+            case 'bottom':
+              Object.assign(p, { marginTop: targetValue - heights[i] });
+              break;
+            case 'middle':
+              Object.assign(p, { marginTop: targetValue - heights[i] / 2 });
+              break;
+          }
+          if (!comp.props) comp.props = {};
+          comp.props.style = { ...p };
+        });
+        state.isDirty = true;
+      });
+    },
+
+    distributeComponents: (direction) => {
+      const { selectedIds } = get();
+      if (selectedIds.length < 3) return;
+
+      get().saveSnapshot();
+
+      const components = selectedIds
+        .map((id) => findComponentById(get().schema.page.components, id))
+        .filter(Boolean) as PageComponent[];
+
+      const props = components.map((c) => c.props?.style || {});
+      const sizes = direction === 'horizontal'
+        ? props.map((p) => (p.marginLeft as number) || 0)
+        : props.map((p) => (p.marginTop as number) || 0);
+      const dims = direction === 'horizontal'
+        ? props.map((p) => (p.width as number) || 120)
+        : props.map((p) => (p.height as number) || 40);
+
+      const sortedIndices = sizes
+        .map((v, i) => ({ v, i }))
+        .sort((a, b) => a.v - b.v)
+        .map((x) => x.i);
+
+      const totalSpace = sizes[sortedIndices[sortedIndices.length - 1]] + dims[sortedIndices[sortedIndices.length - 1]] - sizes[sortedIndices[0]];
+      const totalComponentSize = dims.reduce((s, d) => s + d, 0);
+      const gap = (totalSpace - totalComponentSize) / (selectedIds.length - 1);
+
+      const newPositions = new Array(selectedIds.length);
+      let current = sizes[sortedIndices[0]];
+      for (const idx of sortedIndices) {
+        newPositions[idx] = direction === 'horizontal'
+          ? { marginLeft: current }
+          : { marginTop: current };
+        current += dims[idx] + gap;
+      }
+
+      set((state) => {
+        selectedIds.forEach((id, i) => {
+          const comp = findComponentById(state.schema.page.components, id);
+          if (!comp) return;
+          if (!comp.props) comp.props = {};
+          const existingStyle = comp.props.style || {};
+          comp.props.style = { ...existingStyle, ...newPositions[i] };
+        });
         state.isDirty = true;
       });
     },

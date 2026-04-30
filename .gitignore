@@ -49,3 +49,5 @@ exported-*/
 
 /# Docs
 docs/*.md
+tests/
+playwright.config.ts

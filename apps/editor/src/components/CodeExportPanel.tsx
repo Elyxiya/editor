@@ -11,6 +11,8 @@ import {
 } from '@ant-design/icons';
 import type { PageSchema, Page } from '@lowcode/types';
 import { generateCode, type CodeGenOptions } from '@lowcode/codegen';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 const { Text, Paragraph } = Typography;
 const { Panel } = Collapse;
@@ -82,36 +84,51 @@ export const CodeExportPanel: React.FC<CodeExportPanelProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // 下载所有代码为 JSON Bundle
-  const handleDownloadBundle = () => {
-    const bundle = {
-      meta: {
-        pageName: page.name,
-        pageTitle: page.title,
-        version: page.version,
-        exportedAt: new Date().toISOString(),
-        totalFiles: files.length,
-        entryFile: mainFile?.path
-      },
-      files: files.map(f => ({
-        path: f.path,
-        language: f.language,
-        content: f.content
-      }))
-    };
+  // 下载所有代码为 ZIP 包
+  const handleDownloadBundle = async () => {
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder(page.name || 'exported-page') || zip;
 
-    const jsonContent = JSON.stringify(bundle, null, 2);
-    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(page.name || 'page').toLowerCase()}-export.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      files.forEach((file) => {
+        folder.file(file.path, file.content);
+      });
 
-    message.success('代码包已下载，请查看 JSON 文件中的说明使用');
+      // 添加说明文件
+      const readme = `# ${page.title || '导出页面'} - 代码包说明
+
+> 由低代码平台自动生成
+> 生成时间: ${new Date().toISOString()}
+
+## 包含文件
+
+${files.map((f) => `- \`${f.path}\``).join('\n')}
+
+## 使用方法
+
+1. 解压此 ZIP 文件
+2. 进入解压后的目录
+3. 执行 \`npm install\` 安装依赖
+4. 执行 \`npm run dev\` 启动开发服务器
+
+## 技术栈
+
+- React 18 + TypeScript
+- Ant Design 5
+- Vite
+
+---
+低代码平台 | Low-Code Platform
+`;
+      folder.file('README.md', readme);
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const filename = `${(page.name || 'page').toLowerCase()}-export.zip`;
+      saveAs(content, filename);
+      message.success('代码包已下载为 ZIP 格式');
+    } catch {
+      message.error('下载失败，请重试');
+    }
   };
 
   // 获取语言标签颜色

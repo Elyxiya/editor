@@ -95,9 +95,6 @@ export function insertComponent(
   position: 'before' | 'after' | 'inside' = 'inside',
   index?: number
 ): PageComponent[] {
-  // #region agent log
-  console.log('[DEBUG insertComponent]', { targetId, position, index, componentCount: components.length });
-  // #endregion
   if (!targetId) {
     if (position === 'inside' || position === 'before') {
       return [component, ...components];
@@ -108,13 +105,7 @@ export function insertComponent(
   const result: PageComponent[] = [];
 
   for (const comp of components) {
-    // #region agent log
-    console.log('[DEBUG insertComponent loop]', { compId: comp.id, compType: comp.type, isContainer: comp.children !== undefined, targetId, position });
-    // #endregion
     if (comp.id === targetId) {
-      // #region agent log
-      console.log('[DEBUG insertComponent MATCH]', { compId: comp.id, compType: comp.type, position, hasChildren: comp.children !== undefined });
-      // #endregion
       if (position === 'before') {
         result.push(component, comp);
       } else if (position === 'after') {

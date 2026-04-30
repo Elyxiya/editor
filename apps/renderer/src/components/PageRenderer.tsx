@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback, useMemo, createContext, useCon
 import { ConfigProvider, Spin, message } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { getComponent, getComponentMeta } from '@lowcode/components';
-import type { PageSchema, PageComponent, DataSource as DataSourceType } from '@lowcode/types';
+import type { PageSchema, PageComponent, DataSource as DataSourceType, ComponentProps } from '@lowcode/types';
 import { EventEmitter } from '@lowcode/events';
 import { createCache } from '@lowcode/datasource';
 
@@ -34,10 +34,6 @@ interface RenderContextValue {
   setVariable: (name: string, value: unknown) => void;
   executeAction: (actionType: string, config: Record<string, unknown>) => void;
   eventEmitter: EventEmitter;
-}
-
-interface ComponentProps {
-  [key: string]: unknown;
 }
 
 // ============================================================
@@ -454,6 +450,104 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
         {children?.map((child) => (
           <RenderContainer key={child.id} component={child} />
         ))}
+      </div>
+    );
+  }
+
+  // Tag 标签组件（可嵌套在其他组件内）
+  if (component.type === 'Tag') {
+    const tagProps = { ...resolvedProps };
+    delete (tagProps as any).style;
+    return (
+      <span
+        style={resolvedProps.style as React.CSSProperties}
+        className={resolvedProps.className as string}
+      >
+        <RenderComponent component={{ ...component, props: tagProps }} />
+      </span>
+    );
+  }
+
+  // Badge 徽章组件
+  if (component.type === 'Badge') {
+    const badgeProps = { ...resolvedProps };
+    delete (badgeProps as any).style;
+    return (
+      <span
+        style={resolvedProps.style as React.CSSProperties}
+        className={resolvedProps.className as string}
+      >
+        <RenderComponent component={{ ...component, props: badgeProps }} />
+      </span>
+    );
+  }
+
+  // Avatar 头像组件
+  if (component.type === 'Avatar') {
+    const avatarProps = { ...resolvedProps };
+    delete (avatarProps as any).style;
+    return (
+      <span
+        style={resolvedProps.style as React.CSSProperties}
+        className={resolvedProps.className as string}
+      >
+        <RenderComponent component={{ ...component, props: avatarProps }} />
+      </span>
+    );
+  }
+
+  // Progress 进度条组件
+  if (component.type === 'Progress') {
+    const progressProps = { ...resolvedProps };
+    delete (progressProps as any).style;
+    return (
+      <div
+        style={{ width: '100%', ...(resolvedProps.style as React.CSSProperties) }}
+        className={resolvedProps.className as string}
+      >
+        <RenderComponent component={{ ...component, props: progressProps }} />
+      </div>
+    );
+  }
+
+  // Statistic 统计组件
+  if (component.type === 'Statistic') {
+    const statProps = { ...resolvedProps };
+    delete (statProps as any).style;
+    return (
+      <span
+        style={resolvedProps.style as React.CSSProperties}
+        className={resolvedProps.className as string}
+      >
+        <RenderComponent component={{ ...component, props: statProps }} />
+      </span>
+    );
+  }
+
+  // Skeleton 骨架屏组件
+  if (component.type === 'Skeleton') {
+    const skelProps = { ...resolvedProps };
+    delete (skelProps as any).style;
+    return (
+      <div
+        style={{ width: '100%', ...(resolvedProps.style as React.CSSProperties) }}
+        className={resolvedProps.className as string}
+      >
+        <RenderComponent component={{ ...component, props: skelProps }} />
+      </div>
+    );
+  }
+
+  // 图表组件
+  if (component.type === 'LineChart' || component.type === 'BarChart' || component.type === 'PieChart') {
+    const chartProps = { ...resolvedProps };
+    delete (chartProps as any).style;
+    return (
+      <div
+        style={{ width: '100%', ...(resolvedProps.style as React.CSSProperties) }}
+        className={resolvedProps.className as string}
+      >
+        <RenderComponent component={{ ...component, props: chartProps }} />
       </div>
     );
   }

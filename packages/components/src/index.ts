@@ -1,21 +1,7 @@
 import React from 'react';
 import type { ComponentMeta, ComponentProps } from '@lowcode/types';
-import { LcButton } from './basic/Button';
-import { LcInput } from './basic/Input';
-import { LcText } from './basic/Text';
-import { LcImage } from './basic/Image';
-import { LcForm } from './basic/Form';
-import { LcFormItem } from './basic/FormItem';
-import { LcSelect } from './basic/Select';
-import { LcContainer } from './layout/Container';
-import { LcSpace } from './layout/Space';
-import { LcCard } from './business/Card';
-import { LcTable } from './business/Table';
-import { LcModal } from './business/Modal';
-import { LcTabs } from './business/Tabs';
-import { LcDivider } from './business/Divider';
-import { LcBadge, LcTag, LcAvatar, LcProgress, LcStatistic, LcSkeleton } from './advanced';
 
+// Export all component modules
 export * from './basic/Button';
 export * from './basic/Input';
 export * from './basic/Text';
@@ -31,11 +17,38 @@ export * from './business/Modal';
 export * from './business/Tabs';
 export * from './business/Divider';
 export * from './advanced';
+export * from './chart';
 export * from './registry';
 
 type ComponentWithMeta = {
   meta: ComponentMeta;
 };
+
+// Import all components for the registry
+import { LcButton } from './basic/Button';
+import { LcInput } from './basic/Input';
+import { LcText } from './basic/Text';
+import { LcImage } from './basic/Image';
+import { LcForm } from './basic/Form';
+import { LcFormItem } from './basic/FormItem';
+import { LcSelect } from './basic/Select';
+import { LcContainer } from './layout/Container';
+import { LcSpace } from './layout/Space';
+import { LcCard } from './business/Card';
+import { LcTable } from './business/Table';
+import { LcModal } from './business/Modal';
+import { LcTabs } from './business/Tabs';
+import { LcDivider } from './business/Divider';
+import {
+  LcBadge,
+  LcTag,
+  LcAvatar,
+  LcProgress,
+  LcStatistic,
+  LcSkeleton,
+} from './advanced';
+import { LineChart, BarChart, PieChart } from './chart';
+import { LineChartMeta, BarChartMeta, PieChartMeta } from './chart';
 
 export const componentRegistry: Map<string, ComponentMeta> = new Map();
 
@@ -54,13 +67,15 @@ const allComponents: Array<{ meta: ComponentMeta; component: React.ComponentType
   { meta: (LcModal as unknown as ComponentWithMeta).meta, component: LcModal },
   { meta: (LcTabs as unknown as ComponentWithMeta).meta, component: LcTabs },
   { meta: (LcDivider as unknown as ComponentWithMeta).meta, component: LcDivider },
-  // 高级组件
   { meta: (LcBadge as unknown as ComponentWithMeta).meta, component: LcBadge },
   { meta: (LcTag as unknown as ComponentWithMeta).meta, component: LcTag },
   { meta: (LcAvatar as unknown as ComponentWithMeta).meta, component: LcAvatar },
   { meta: (LcProgress as unknown as ComponentWithMeta).meta, component: LcProgress },
   { meta: (LcStatistic as unknown as ComponentWithMeta).meta, component: LcStatistic },
   { meta: (LcSkeleton as unknown as ComponentWithMeta).meta, component: LcSkeleton },
+  { meta: (LineChart as unknown as ComponentWithMeta).meta, component: LineChart },
+  { meta: (BarChart as unknown as ComponentWithMeta).meta, component: BarChart },
+  { meta: (PieChart as unknown as ComponentWithMeta).meta, component: PieChart },
 ];
 
 allComponents.forEach(({ meta }) => {
@@ -84,7 +99,10 @@ export function getComponentsByCategory(category: ComponentMeta['category']): Co
   return Array.from(componentRegistry.values()).filter((meta) => meta.category === category);
 }
 
-export function registerComponent(meta: ComponentMeta, component: React.ComponentType<ComponentProps>): void {
+export function registerComponent(
+  meta: ComponentMeta,
+  component: React.ComponentType<ComponentProps>
+): void {
   componentRegistry.set(meta.name, meta);
   allComponents.push({ meta, component });
 }

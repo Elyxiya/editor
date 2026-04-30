@@ -1,0 +1,76 @@
+import type { ComponentMeta } from '@lowcode/types';
+
+export const ProgressMeta: ComponentMeta = {
+  name: 'Progress',
+  label: '进度条',
+  icon: 'LoadingOutlined',
+  category: 'business',
+  defaultProps: {
+    percent: 0,
+    showInfo: true,
+    size: 'default',
+    type: 'line',
+    status: 'normal',
+  },
+  propSchema: [
+    {
+      name: 'percent',
+      label: '进度',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      max: 100,
+      group: 'basic',
+    },
+    {
+      name: 'status',
+      label: '状态',
+      type: 'select',
+      options: [
+        { label: '正常', value: 'normal' },
+        { label: '成功', value: 'success' },
+        { label: '异常', value: 'exception' },
+        { label: '进行中', value: 'active' },
+      ],
+      defaultValue: 'normal',
+      group: 'basic',
+    },
+    {
+      name: 'showInfo',
+      label: '显示信息',
+      type: 'boolean',
+      defaultValue: true,
+      group: 'basic',
+    },
+    {
+      name: 'strokeColor',
+      label: '进度条颜色',
+      type: 'color',
+      defaultValue: '#1890ff',
+      group: 'style',
+    },
+    {
+      name: 'type',
+      label: '类型',
+      type: 'select',
+      options: [
+        { label: '线性', value: 'line' },
+        { label: '圆形', value: 'circle' },
+        { label: '仪表盘', value: 'dashboard' },
+      ],
+      defaultValue: 'line',
+      group: 'basic',
+    },
+    {
+      name: 'strokeWidth',
+      label: '线条宽度',
+      type: 'number',
+      defaultValue: 8,
+      min: 1,
+      max: 20,
+      group: 'style',
+    },
+  ],
+  eventSchema: [],
+  styleSchema: [],
+};

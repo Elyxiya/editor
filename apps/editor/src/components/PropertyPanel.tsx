@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider, Alert } from 'antd';
+import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider, Alert, Slider, Typography } from 'antd';
 import { useEditorStore } from '@/store/editorStore';
 import { findComponentById } from '@lowcode/schema';
 import { getComponentMeta } from '@lowcode/components';
@@ -26,6 +26,19 @@ export const PropertyPanel: React.FC = () => {
 
   const handleBindingsChange = (bindings: EventBinding[]) => {
     updateComponent(selectedId!, { events: { bindings } });
+  };
+
+  const getStyleValue = (props: any, key: string): any => {
+    if (props?.style && props.style[key] !== undefined) {
+      return props.style[key];
+    }
+    return props?.[key];
+  };
+
+  const handleStyleChange = (key: string, value: unknown) => {
+    const currentStyle = selectedComponent.props?.style || {};
+    const merged = { ...currentStyle, [key]: value };
+    updateComponent(selectedId!, { style: merged });
   };
 
   if (!selectedComponent) {
@@ -142,11 +155,270 @@ export const PropertyPanel: React.FC = () => {
       label: '样式',
       children: (
         <Form layout="vertical" size="small">
-          {styleProps?.map((prop) => (
-            <Form.Item key={prop.name} label={prop.label}>
-              {renderFormItem(prop)}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Form.Item label="margin-top" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'marginTop')}
+                onChange={(v) => handleStyleChange('marginTop', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
             </Form.Item>
-          ))}
+            <Form.Item label="margin-right" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'marginRight')}
+                onChange={(v) => handleStyleChange('marginRight', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
+            </Form.Item>
+            <Form.Item label="margin-bottom" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'marginBottom')}
+                onChange={(v) => handleStyleChange('marginBottom', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
+            </Form.Item>
+            <Form.Item label="margin-left" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'marginLeft')}
+                onChange={(v) => handleStyleChange('marginLeft', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
+            </Form.Item>
+          </div>
+
+          <Divider style={{ margin: '8px 0' }} />
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>内边距 (padding)</Typography.Text>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+            <Form.Item label="padding-top" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'paddingTop')}
+                onChange={(v) => handleStyleChange('paddingTop', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
+            </Form.Item>
+            <Form.Item label="padding-right" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'paddingRight')}
+                onChange={(v) => handleStyleChange('paddingRight', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
+            </Form.Item>
+            <Form.Item label="padding-bottom" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'paddingBottom')}
+                onChange={(v) => handleStyleChange('paddingBottom', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
+            </Form.Item>
+            <Form.Item label="padding-left" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'paddingLeft')}
+                onChange={(v) => handleStyleChange('paddingLeft', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={1000}
+                addonAfter="px"
+              />
+            </Form.Item>
+          </div>
+
+          <Divider style={{ margin: '8px 0' }} />
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>尺寸 (size)</Typography.Text>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+            <Form.Item label="宽度" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'width')}
+                onChange={(v) => handleStyleChange('width', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={2000}
+                addonAfter="px"
+                placeholder="auto"
+              />
+            </Form.Item>
+            <Form.Item label="高度" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'height')}
+                onChange={(v) => handleStyleChange('height', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={2000}
+                addonAfter="px"
+                placeholder="auto"
+              />
+            </Form.Item>
+            <Form.Item label="最大宽度" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'maxWidth')}
+                onChange={(v) => handleStyleChange('maxWidth', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={3000}
+                addonAfter="px"
+                placeholder="none"
+              />
+            </Form.Item>
+            <Form.Item label="最小高度" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'minHeight')}
+                onChange={(v) => handleStyleChange('minHeight', v)}
+                style={{ width: '100%' }}
+                min={0}
+                max={2000}
+                addonAfter="px"
+                placeholder="0"
+              />
+            </Form.Item>
+          </div>
+
+          <Divider style={{ margin: '8px 0' }} />
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>背景 (background)</Typography.Text>
+
+          <Form.Item label="背景色" style={{ marginBottom: 8 }}>
+            <ColorPicker
+              value={getStyleValue(selectedComponent.props, 'backgroundColor') || '#ffffff'}
+              onChange={(c) => handleStyleChange('backgroundColor', c.toHexString())}
+              showText
+            />
+          </Form.Item>
+
+          <Form.Item label="背景图片 URL" style={{ marginBottom: 8 }}>
+            <Input
+              value={getStyleValue(selectedComponent.props, 'backgroundImage') || ''}
+              onChange={(e) => handleStyleChange('backgroundImage', e.target.value)}
+              placeholder="url(https://...)"
+            />
+          </Form.Item>
+
+          <Divider style={{ margin: '8px 0' }} />
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>边框 (border)</Typography.Text>
+
+          <Form.Item label="边框宽度" style={{ marginBottom: 8 }}>
+            <InputNumber
+              value={getStyleValue(selectedComponent.props, 'borderWidth')}
+              onChange={(v) => handleStyleChange('borderWidth', v)}
+              style={{ width: '100%' }}
+              min={0}
+              max={20}
+              addonAfter="px"
+            />
+          </Form.Item>
+
+          <Form.Item label="边框颜色" style={{ marginBottom: 8 }}>
+            <ColorPicker
+              value={getStyleValue(selectedComponent.props, 'borderColor') || '#d9d9d9'}
+              onChange={(c) => handleStyleChange('borderColor', c.toHexString())}
+              showText
+            />
+          </Form.Item>
+
+          <Form.Item label="边框样式" style={{ marginBottom: 8 }}>
+            <Select
+              value={getStyleValue(selectedComponent.props, 'borderStyle') || 'solid'}
+              onChange={(v) => handleStyleChange('borderStyle', v)}
+              style={{ width: '100%' }}
+              options={[
+                { label: '实线', value: 'solid' },
+                { label: '虚线', value: 'dashed' },
+                { label: '点线', value: 'dotted' },
+                { label: '双线', value: 'double' },
+                { label: '无', value: 'none' },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item label="圆角" style={{ marginBottom: 8 }}>
+            <InputNumber
+              value={getStyleValue(selectedComponent.props, 'borderRadius')}
+              onChange={(v) => handleStyleChange('borderRadius', v)}
+              style={{ width: '100%' }}
+              min={0}
+              max={100}
+              addonAfter="px"
+            />
+          </Form.Item>
+
+          <Divider style={{ margin: '8px 0' }} />
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>阴影 (shadow)</Typography.Text>
+
+          <Form.Item label="阴影效果" style={{ marginBottom: 8 }}>
+            <Select
+              value={getStyleValue(selectedComponent.props, 'boxShadow') || 'none'}
+              onChange={(v) => handleStyleChange('boxShadow', v)}
+              style={{ width: '100%' }}
+              options={[
+                { label: '无', value: 'none' },
+                { label: '小阴影', value: '0 1px 2px rgba(0,0,0,0.05)' },
+                { label: '中等阴影', value: '0 4px 6px rgba(0,0,0,0.1)' },
+                { label: '大阴影', value: '0 10px 15px rgba(0,0,0,0.1)' },
+                { label: '卡片阴影', value: '0 2px 8px rgba(0,0,0,0.08)' },
+                { label: '悬浮阴影', value: '0 4px 12px rgba(0,0,0,0.15)' },
+                { label: '内阴影', value: 'inset 0 2px 4px rgba(0,0,0,0.1)' },
+              ]}
+            />
+          </Form.Item>
+
+          <Divider style={{ margin: '8px 0' }} />
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>定位 (position)</Typography.Text>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <Form.Item label="定位方式" style={{ marginBottom: 8 }}>
+              <Select
+                value={getStyleValue(selectedComponent.props, 'position') || 'relative'}
+                onChange={(v) => handleStyleChange('position', v)}
+                style={{ width: '100%' }}
+                options={[
+                  { label: '静态', value: 'static' },
+                  { label: '相对', value: 'relative' },
+                  { label: '绝对', value: 'absolute' },
+                  { label: '固定', value: 'fixed' },
+                  { label: '粘性', value: 'sticky' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="z-index" style={{ marginBottom: 8 }}>
+              <InputNumber
+                value={getStyleValue(selectedComponent.props, 'zIndex') ?? 0}
+                onChange={(v) => handleStyleChange('zIndex', v)}
+                style={{ width: '100%' }}
+                min={-1}
+                max={9999}
+              />
+            </Form.Item>
+            <Form.Item label="透明度" style={{ marginBottom: 8 }}>
+              <Slider
+                value={getStyleValue(selectedComponent.props, 'opacity') ?? 1}
+                onChange={(v) => handleStyleChange('opacity', v)}
+                min={0}
+                max={1}
+                step={0.1}
+                marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
+              />
+            </Form.Item>
+          </div>
         </Form>
       ),
     },

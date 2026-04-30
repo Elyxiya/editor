@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { CopyOutlined, ScissorOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Tooltip } from 'antd';
@@ -17,7 +18,16 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
   component,
   isSelected,
 }) => {
-  const { selectComponent, removeComponent, copyComponent, cutComponent, selectedId, setOverContainerId } = useEditorStore();
+  const {
+    selectComponent,
+    toggleComponentSelection,
+    removeComponent,
+    copyComponent,
+    cutComponent,
+    selectedId,
+    setOverContainerId,
+    overContainerId,
+  } = useEditorStore();
 
   const isContainer = component.children !== undefined;
 
@@ -36,39 +46,24 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
     },
   });
 
-  const dropZoneRef = useRef<HTMLDivElement>(null);
-  const [isOverDropZone, setIsOverDropZone] = useState(false);
+  const dropZoneId = `${component.id}-drop-zone`;
+  const {
+    setNodeRef: setDropZoneRef,
+    isOver: isOverDropZone,
+  } = useDroppable({
+    id: dropZoneId,
+    data: { type: 'dropZone', containerId: component.id },
+  });
 
   useEffect(() => {
-    const zone = dropZoneRef.current;
-    if (!zone || !isContainer) return;
-
-    const handlePointerMove = (e: PointerEvent) => {
-      const rect = zone.getBoundingClientRect();
-      const inside =
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom;
-      setIsOverDropZone(inside);
-    };
-
-    zone.addEventListener('pointermove', handlePointerMove);
-    return () => zone.removeEventListener('pointermove', handlePointerMove);
-  }, [isContainer]);
-
-  const handleDragEnter = () => {
-    if (isContainer) setOverContainerId(component.id);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!isContainer) return;
-    const related = e.relatedTarget as Node | null;
-    const zone = dropZoneRef.current;
-    if (zone && !zone.contains(related)) {
-      setOverContainerId(null);
+    if (isOverDropZone && isContainer) {
+      setOverContainerId(component.id);
+    } else if (!isOverDropZone && !isDragging) {
+      if (overContainerId === component.id) {
+        setOverContainerId(null);
+      }
     }
-  };
+  }, [isOverDropZone, isContainer, component.id, isDragging, overContainerId]);
 
   const style: React.CSSProperties = useMemo(
     () => ({
@@ -82,7 +77,11 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    selectComponent(component.id);
+    if (e.shiftKey) {
+      toggleComponentSelection(component.id);
+    } else {
+      selectComponent(component.id);
+    }
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -126,7 +125,10 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
               </button>
             </Tooltip>
             <Tooltip title="删除" mouseEnterDelay={0.3}>
-              <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={handleDelete}>
+              <button
+                className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                onClick={handleDelete}
+              >
                 <DeleteOutlined />
               </button>
             </Tooltip>
@@ -138,10 +140,8 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
       </div>
       {isContainer && (
         <div
-          ref={dropZoneRef}
+          ref={setDropZoneRef}
           className={`${styles.dropZone} ${isOverDropZone ? styles.dropZoneActive : ''}`}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
         >
           <SortableContext
             items={component.children?.map((c) => c.id) || []}

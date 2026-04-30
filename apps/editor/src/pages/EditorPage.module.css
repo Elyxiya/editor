@@ -1,32 +1,92 @@
-.editorPage {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #f5f5f5;
-}
-
-.editorContent {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.leftPanel {
-  width: 240px;
-  background: #fff;
-  border-right: 1px solid #f0f0f0;
-  overflow-y: auto;
-}
-
 .canvasArea {
   flex: 1;
   overflow: auto;
   padding: 24px;
+  background: #e5e5e5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  transition: background 0.3s;
 }
 
-.rightPanel {
-  width: 300px;
+.deviceMobile {
+  background: #c0c0c0;
+}
+
+.deviceTablet {
+  background: #b0b0b0;
+}
+
+.deviceDesktop {
+  background: #f5f5f5;
+}
+
+.deviceFrame {
+  display: flex;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.mobileFrame {
+  width: 375px;
+  min-height: 667px;
   background: #fff;
-  border-left: 1px solid #f0f0f0;
-  overflow-y: auto;
+  border-radius: 24px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 8px #1a1a1a,
+    inset 0 0 0 10px #333;
+  position: relative;
+  overflow: hidden;
+}
+
+.mobileFrame::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 20px;
+  background: #1a1a1a;
+  border-radius: 10px;
+  z-index: 100;
+}
+
+.mobileFrame::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  z-index: 100;
+}
+
+.tabletFrame {
+  width: 768px;
+  min-height: 1024px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 6px #1a1a1a;
+  position: relative;
+  overflow: hidden;
+}
+
+.tabletFrame::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  background: #1a1a1a;
+  border-radius: 50%;
+  z-index: 100;
 }

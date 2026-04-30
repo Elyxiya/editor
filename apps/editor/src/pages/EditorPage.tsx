@@ -2,12 +2,15 @@ import React, { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, CollisionDetection, closestCenter, pointerWithin } from '@dnd-kit/core';
 import { EditorToolbar } from '@/components/EditorToolbar';
+import { EditorStatusBar } from '@/components/EditorStatusBar';
 import { ComponentLibrary } from '@/components/ComponentLibrary';
 import { Canvas } from '@/components/Canvas';
 import { PropertyPanel } from '@/components/PropertyPanel';
 import { useEditorStore } from '@/store/editorStore';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { getComponentMeta } from '@lowcode/components';
+import { DEVICE_WIDTHS } from '@lowcode/utils';
+import styles from './EditorPage.module.css';
 
 /**
  * Collision detection: prefer the most specific (smallest) element under the pointer.
@@ -31,7 +34,7 @@ const smartCollisionDetection: CollisionDetection = (args) => {
 export const EditorPage: React.FC = () => {
   const { pageId } = useParams<{ pageId?: string }>();
   const store = useEditorStore() as any;
-  const { schema, setSchema, addComponent, moveComponent, setActiveId, overContainerId, setOverContainerId } = store;
+  const { schema, setSchema, addComponent, moveComponent, setActiveId, overContainerId, setOverContainerId, device, zoom } = store;
   const [activeDragData, setActiveDragData] = React.useState<any>(null);
 
   useKeyboardShortcuts();
@@ -73,8 +76,13 @@ export const EditorPage: React.FC = () => {
     const resolveTarget = (): { targetId: string | null; position: 'before' | 'after' | 'inside' } => {
       const overId = String(over.id);
 
-      // Pointer was inside a container drop zone (tracked by SortableComponent)
+      // Pointer was inside a container drop zone (tracked by SortableComponent via useDroppable)
       if (overContainerId) return { targetId: overContainerId, position: 'inside' };
+
+      // Dropped directly on a container's drop zone droppable
+      if (overData?.type === 'dropZone') {
+        return { targetId: overData.containerId, position: 'inside' };
+      }
 
       // Dropped on the canvas background → append to root level
       if (overId === 'canvas') return { targetId: null, position: 'after' };
@@ -142,6 +150,13 @@ export const EditorPage: React.FC = () => {
     return null;
   };
 
+  const deviceFrameClass =
+    device === 'mobile'
+      ? styles.deviceMobile
+      : device === 'tablet'
+        ? styles.deviceTablet
+        : styles.deviceDesktop;
+
   return (
     <DndContext
       collisionDetection={smartCollisionDetection}
@@ -154,13 +169,16 @@ export const EditorPage: React.FC = () => {
           <div style={{ width: 240, background: '#fff', borderRight: '1px solid #f0f0f0', overflowY: 'auto' }}>
             <ComponentLibrary />
           </div>
-          <div style={{ flex: 1, overflow: 'auto', padding: 24, background: '#f5f5f5' }}>
-            <Canvas />
+          <div className={`${styles.canvasArea} ${deviceFrameClass}`}>
+            <div className={`${styles.deviceFrame} ${device === 'mobile' ? styles.mobileFrame : device === 'tablet' ? styles.tabletFrame : ''}`}>
+              <Canvas />
+            </div>
           </div>
           <div style={{ width: 300, background: '#fff', borderLeft: '1px solid #f0f0f0', overflowY: 'auto' }}>
             <PropertyPanel />
           </div>
         </div>
+        <EditorStatusBar />
       </div>
       <DragOverlay>
         {renderDragPreview()}
