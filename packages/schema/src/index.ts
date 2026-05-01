@@ -76,6 +76,100 @@ export function findComponentIndex(
   return components.findIndex((c) => c.id === id);
 }
 
+/**
+ * Find the path (array of parent component IDs) to a component.
+ * Returns null if the component is not found.
+ * Example: ['container1', 'container2'] means comp is inside container2 inside container1.
+ */
+export function findComponentPath(
+  components: PageComponent[],
+  id: string,
+  path: string[] = []
+): string[] | null {
+  for (let i = 0; i < components.length; i++) {
+    const comp = components[i];
+    if (comp.id === id) {
+      return path;
+    }
+    if (comp.children) {
+      const found = findComponentPath(comp.children, id, [...path, comp.id]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Swap a component with its sibling in a siblings array.
+ */
+export function swapInSiblings(
+  siblings: PageComponent[],
+  componentId: string,
+  direction: 'up' | 'down'
+): PageComponent[] {
+  const index = siblings.findIndex((c) => c.id === componentId);
+  if (index < 0) return siblings;
+
+  const targetIndex = direction === 'up' ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= siblings.length) return siblings;
+
+  const comps = [...siblings];
+  [comps[index], comps[targetIndex]] = [comps[targetIndex], comps[index]];
+  return comps;
+}
+
+/**
+ * Move a component to the start of its siblings array.
+ */
+export function moveToStartOfSiblings(siblings: PageComponent[], componentId: string): PageComponent[] {
+  const index = siblings.findIndex((c) => c.id === componentId);
+  if (index <= 0) return siblings;
+  const comps = [...siblings];
+  const [item] = comps.splice(index, 1);
+  comps.unshift(item);
+  return comps;
+}
+
+/**
+ * Move a component to the end of its siblings array.
+ */
+export function moveToEndOfSiblings(siblings: PageComponent[], componentId: string): PageComponent[] {
+  const index = siblings.findIndex((c) => c.id === componentId);
+  if (index < 0 || index === siblings.length - 1) return siblings;
+  const comps = [...siblings];
+  const [item] = comps.splice(index, 1);
+  comps.push(item);
+  return comps;
+}
+
+/**
+ * Recursively update siblings at the root level or inside a container.
+ */
+export function updateComponentInTree(
+  components: PageComponent[],
+  componentId: string,
+  updater: (siblings: PageComponent[]) => PageComponent[]
+): PageComponent[] {
+  const index = components.findIndex((c) => c.id === componentId);
+  if (index >= 0) {
+    return updater(components);
+  }
+  return components.map((comp) => {
+    if (!comp.children) return comp;
+    const childIndex = comp.children.findIndex((c) => c.id === componentId);
+    if (childIndex >= 0) {
+      return {
+        ...comp,
+        children: updater(comp.children),
+      };
+    }
+    return {
+      ...comp,
+      children: updateComponentInTree(comp.children, componentId, updater),
+    };
+  });
+}
+
 export function removeComponentById(
   components: PageComponent[],
   id: string
@@ -239,15 +333,21 @@ export function createEmptyPageSchema(title: string = '未命名页面'): PageSc
   };
 }
 
-export function validateSchemaVersion(schema: PageSchema): boolean {
+export function validateSchemaVersion(schema: PageSchema): { valid: boolean; errors?: string[] } {
   const currentVersion = schema.version;
-  const [major] = currentVersion.split('.').map(Number);
+  const parts = currentVersion.split('.');
+  const [major, minor] = parts.map((p) => parseInt(p, 10) || 0);
 
-  if (major > 1) {
-    console.warn(`Schema version ${currentVersion} may not be fully compatible`);
-    return true;
+  if (major === 0) {
+    return { valid: false, errors: [`Invalid version format: ${currentVersion}`] };
   }
-  return true;
+  if (major > 2) {
+    return { valid: false, errors: [`Schema version ${currentVersion} is not supported. Maximum supported version is 2.x`] };
+  }
+  if (isNaN(major) || isNaN(minor)) {
+    return { valid: false, errors: [`Invalid version string: ${currentVersion}`] };
+  }
+  return { valid: true };
 }
 
 export { pageSchemaDefinition };

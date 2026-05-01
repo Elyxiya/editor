@@ -691,7 +691,7 @@ export class LogicExecutor {
   private async executeGetVariable(
     node: LogicNode,
     context: ExecutionContext,
-    inputData: Record<string, unknown>
+    _inputData: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const params = (node.config.params || {}) as Record<string, unknown>;
     const variableName = params.variableName as string | undefined;

@@ -195,14 +195,14 @@ export function getDeviceType(width?: number): 'pc' | 'tablet' | 'mobile' {
 
 // Device Widths
 export const DEVICE_WIDTHS = {
-  pc: 1920,
+  pc: 1200,
   tablet: 768,
   mobile: 375,
 } as const;
 
 // Device Labels
 export const DEVICE_LABELS = {
-  pc: '桌面端 (1920px)',
+  pc: '桌面端 (1200px)',
   tablet: '平板端 (768px)',
   mobile: '移动端 (375px)',
 } as const;

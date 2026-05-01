@@ -8,7 +8,9 @@
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "isolatedModules": false
+    "isolatedModules": false,
+    "resolveJsonModule": true,
+    "types": ["node", "@prisma/client"]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "src/prisma.ts"]
 }

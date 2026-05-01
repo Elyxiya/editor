@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { PageSchema, PageComponent } from '@lowcode/types';
-import { createEmptyPageSchema, generateComponentId, insertComponent, removeComponentById, updateComponentProps, moveComponent as moveComponentHelper, findComponentById, cloneComponent } from '@lowcode/schema';
+import { createEmptyPageSchema, generateComponentId, insertComponent, removeComponentById, updateComponentProps, moveComponent as moveComponentHelper, findComponentById, cloneComponent, swapInSiblings, moveToStartOfSiblings, moveToEndOfSiblings, updateComponentInTree } from '@lowcode/schema';
 import { getComponentMeta } from '@lowcode/components';
 
 interface HistoryState {
@@ -51,6 +51,10 @@ interface EditorActions {
 
   alignComponents: (direction: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
   distributeComponents: (direction: 'horizontal' | 'vertical') => void;
+  bringToTop: () => void;
+  sendToBottom: () => void;
+  moveUp: () => void;
+  moveDown: () => void;
 
   undo: () => void;
   redo: () => void;
@@ -337,8 +341,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         .map((id) => findComponentById(get().schema.page.components, id))
         .filter(Boolean) as PageComponent[];
 
-      const props = components.map((c) => c.props?.style || {});
-      const widths = props.map((p) => (p.width as number) || 120);
+      const props = components.map((c) => (c.props?.style || {}) as Record<string, number>);
+      const widths = props.map((p) => p['width'] || 120);
       const heights = props.map((p) => (p.height as number) || 40);
 
       let targetValue: number;
@@ -407,13 +411,13 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         .map((id) => findComponentById(get().schema.page.components, id))
         .filter(Boolean) as PageComponent[];
 
-      const props = components.map((c) => c.props?.style || {});
+      const props = components.map((c) => (c.props?.style || {}) as Record<string, number>);
       const sizes = direction === 'horizontal'
-        ? props.map((p) => (p.marginLeft as number) || 0)
-        : props.map((p) => (p.marginTop as number) || 0);
+        ? props.map((p) => p['marginLeft'] || 0)
+        : props.map((p) => p['marginTop'] || 0);
       const dims = direction === 'horizontal'
-        ? props.map((p) => (p.width as number) || 120)
-        : props.map((p) => (p.height as number) || 40);
+        ? props.map((p) => p['width'] || 120)
+        : props.map((p) => p['height'] || 40);
 
       const sortedIndices = sizes
         .map((v, i) => ({ v, i }))
@@ -441,6 +445,70 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           const existingStyle = comp.props.style || {};
           comp.props.style = { ...existingStyle, ...newPositions[i] };
         });
+        state.isDirty = true;
+      });
+    },
+
+    bringToTop: () => {
+      const { selectedId } = get();
+      if (!selectedId) return;
+
+      get().saveSnapshot();
+
+      set((state) => {
+        state.schema.page.components = updateComponentInTree(
+          state.schema.page.components,
+          selectedId,
+          (siblings) => moveToStartOfSiblings(siblings, selectedId)
+        );
+        state.isDirty = true;
+      });
+    },
+
+    sendToBottom: () => {
+      const { selectedId } = get();
+      if (!selectedId) return;
+
+      get().saveSnapshot();
+
+      set((state) => {
+        state.schema.page.components = updateComponentInTree(
+          state.schema.page.components,
+          selectedId,
+          (siblings) => moveToEndOfSiblings(siblings, selectedId)
+        );
+        state.isDirty = true;
+      });
+    },
+
+    moveUp: () => {
+      const { selectedId } = get();
+      if (!selectedId) return;
+
+      get().saveSnapshot();
+
+      set((state) => {
+        state.schema.page.components = updateComponentInTree(
+          state.schema.page.components,
+          selectedId,
+          (siblings) => swapInSiblings(siblings, selectedId, 'up')
+        );
+        state.isDirty = true;
+      });
+    },
+
+    moveDown: () => {
+      const { selectedId } = get();
+      if (!selectedId) return;
+
+      get().saveSnapshot();
+
+      set((state) => {
+        state.schema.page.components = updateComponentInTree(
+          state.schema.page.components,
+          selectedId,
+          (siblings) => swapInSiblings(siblings, selectedId, 'down')
+        );
         state.isDirty = true;
       });
     },

@@ -8,8 +8,8 @@ import { Canvas } from '@/components/Canvas';
 import { PropertyPanel } from '@/components/PropertyPanel';
 import { useEditorStore } from '@/store/editorStore';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { getComponentMeta } from '@lowcode/components';
-import { DEVICE_WIDTHS } from '@lowcode/utils';
 import styles from './EditorPage.module.css';
 
 /**
@@ -34,10 +34,11 @@ const smartCollisionDetection: CollisionDetection = (args) => {
 export const EditorPage: React.FC = () => {
   const { pageId } = useParams<{ pageId?: string }>();
   const store = useEditorStore() as any;
-  const { schema, setSchema, addComponent, moveComponent, setActiveId, overContainerId, setOverContainerId, device, zoom } = store;
+  const { schema, setSchema, addComponent, moveComponent, setActiveId, overContainerId, setOverContainerId, device } = store;
   const [activeDragData, setActiveDragData] = React.useState<any>(null);
 
   useKeyboardShortcuts();
+  useCanvasZoom();
 
   useEffect(() => {
     if (pageId) {
@@ -163,18 +164,21 @@ export const EditorPage: React.FC = () => {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         <EditorToolbar />
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          <div style={{ width: 240, background: '#fff', borderRight: '1px solid #f0f0f0', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ width: 240, background: '#fff', borderRight: '1px solid #f0f0f0', overflowY: 'auto', flexShrink: 0 }}>
             <ComponentLibrary />
           </div>
-          <div className={`${styles.canvasArea} ${deviceFrameClass}`}>
+          <div
+            className={`${styles.canvasArea} ${deviceFrameClass}`}
+            style={{ flex: 1, overflow: 'auto', position: 'relative' }}
+          >
             <div className={`${styles.deviceFrame} ${device === 'mobile' ? styles.mobileFrame : device === 'tablet' ? styles.tabletFrame : ''}`}>
               <Canvas />
             </div>
           </div>
-          <div style={{ width: 300, background: '#fff', borderLeft: '1px solid #f0f0f0', overflowY: 'auto' }}>
+          <div style={{ width: 360, background: '#fff', borderLeft: '1px solid #f0f0f0', overflowY: 'auto', flexShrink: 0 }}>
             <PropertyPanel />
           </div>
         </div>

@@ -1,8 +1,8 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, memo } from 'react';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { CopyOutlined, ScissorOutlined, DeleteOutlined } from '@ant-design/icons';
+import { CopyOutlined, ScissorOutlined, DeleteOutlined, VerticalAlignTopOutlined, VerticalAlignBottomOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { Tooltip } from 'antd';
 import { useEditorStore } from '@/store/editorStore';
 import { DynamicComponent } from './DynamicComponent';
@@ -14,20 +14,50 @@ interface SortableComponentProps {
   isSelected: boolean;
 }
 
-export const SortableComponent: React.FC<SortableComponentProps> = ({
+interface LayerActions {
+  bringToTop: () => void;
+  sendToBottom: () => void;
+  moveUp: () => void;
+  moveDown: () => void;
+  removeComponent: (id: string) => void;
+  copyComponent: (id: string) => void;
+  cutComponent: (id: string) => void;
+  setOverContainerId: (id: string | null) => void;
+  overContainerId: string | null;
+}
+
+const useLayerActions = (): LayerActions => {
+  const bringToTop = useEditorStore((s) => s.bringToTop);
+  const sendToBottom = useEditorStore((s) => s.sendToBottom);
+  const moveUp = useEditorStore((s) => s.moveUp);
+  const moveDown = useEditorStore((s) => s.moveDown);
+  const removeComponent = useEditorStore((s) => s.removeComponent);
+  const copyComponent = useEditorStore((s) => s.copyComponent);
+  const cutComponent = useEditorStore((s) => s.cutComponent);
+  const setOverContainerId = useEditorStore((s) => s.setOverContainerId);
+  const overContainerId = useEditorStore((s) => s.overContainerId);
+  return { bringToTop, sendToBottom, moveUp, moveDown, removeComponent, copyComponent, cutComponent, setOverContainerId, overContainerId };
+};
+
+interface SelectionActions {
+  selectComponent: (id: string | null) => void;
+  toggleComponentSelection: (id: string) => void;
+  selectedId: string | null;
+}
+
+const useSelectionActions = (): SelectionActions => {
+  const selectComponent = useEditorStore((s) => s.selectComponent);
+  const toggleComponentSelection = useEditorStore((s) => s.toggleComponentSelection);
+  const selectedId = useEditorStore((s) => s.selectedId);
+  return { selectComponent, toggleComponentSelection, selectedId };
+};
+
+const SortableComponentInner: React.FC<SortableComponentProps> = ({
   component,
   isSelected,
 }) => {
-  const {
-    selectComponent,
-    toggleComponentSelection,
-    removeComponent,
-    copyComponent,
-    cutComponent,
-    selectedId,
-    setOverContainerId,
-    overContainerId,
-  } = useEditorStore();
+  const { bringToTop, sendToBottom, moveUp, moveDown, removeComponent, copyComponent, cutComponent, setOverContainerId, overContainerId } = useLayerActions();
+  const { selectComponent, toggleComponentSelection } = useSelectionActions();
 
   const isContainer = component.children !== undefined;
 
@@ -65,6 +95,7 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
     }
   }, [isOverDropZone, isContainer, component.id, isDragging, overContainerId]);
 
+  const { selectedId: selId } = useEditorStore();
   const style: React.CSSProperties = useMemo(
     () => ({
       transform: CSS.Transform.toString(transform),
@@ -99,6 +130,26 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
     cutComponent(component.id);
   };
 
+  const handleBringToTop = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    bringToTop();
+  };
+
+  const handleSendToBottom = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    sendToBottom();
+  };
+
+  const handleMoveUp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    moveUp();
+  };
+
+  const handleMoveDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    moveDown();
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -114,6 +165,26 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
             {component.label}
           </span>
           <div className={styles.actions}>
+            <Tooltip title="置顶" mouseEnterDelay={0.3}>
+              <button className={styles.actionBtn} onClick={handleBringToTop}>
+                <VerticalAlignTopOutlined />
+              </button>
+            </Tooltip>
+            <Tooltip title="上移" mouseEnterDelay={0.3}>
+              <button className={styles.actionBtn} onClick={handleMoveUp}>
+                <ArrowUpOutlined />
+              </button>
+            </Tooltip>
+            <Tooltip title="下移" mouseEnterDelay={0.3}>
+              <button className={styles.actionBtn} onClick={handleMoveDown}>
+                <ArrowDownOutlined />
+              </button>
+            </Tooltip>
+            <Tooltip title="置底" mouseEnterDelay={0.3}>
+              <button className={styles.actionBtn} onClick={handleSendToBottom}>
+                <VerticalAlignBottomOutlined />
+              </button>
+            </Tooltip>
             <Tooltip title="复制" mouseEnterDelay={0.3}>
               <button className={styles.actionBtn} onClick={handleCopy}>
                 <CopyOutlined />
@@ -151,7 +222,7 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
               <SortableComponent
                 key={child.id}
                 component={child}
-                isSelected={selectedId === child.id}
+                isSelected={selId === child.id}
               />
             ))}
           </SortableContext>
@@ -160,3 +231,11 @@ export const SortableComponent: React.FC<SortableComponentProps> = ({
     </div>
   );
 };
+
+export const SortableComponent = memo(SortableComponentInner, (prev, next) => {
+  return (
+    prev.component.id === next.component.id &&
+    prev.isSelected === next.isSelected &&
+    prev.component.label === next.component.label
+  );
+});

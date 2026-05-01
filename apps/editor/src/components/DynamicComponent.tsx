@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { getComponent } from '@lowcode/components';
 import type { PageComponent } from '@lowcode/types';
 
@@ -6,7 +6,7 @@ interface DynamicComponentProps {
   component: PageComponent;
 }
 
-export const DynamicComponent: React.FC<DynamicComponentProps> = ({ component }) => {
+export const DynamicComponent: React.FC<DynamicComponentProps> = memo(({ component }) => {
   const Component = getComponent(component.type);
 
   if (!Component) {
@@ -18,4 +18,4 @@ export const DynamicComponent: React.FC<DynamicComponentProps> = ({ component })
   }
 
   return <Component {...component.props} />;
-};
+});

@@ -1,71 +1,124 @@
 import { Router } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { body, validationResult } from 'express-validator';
+import { prisma } from '../prisma.js';
 
 const router = Router();
 
-const projects = new Map<string, any>();
-
-router.get('/', (req, res) => {
-  const allProjects = [...projects.values()];
-  res.json({ success: true, data: allProjects });
-});
-
-router.get('/:id', (req, res) => {
-  const { id } = req.params;
-  const project = projects.get(id);
-  if (!project) {
-    return res.status(404).json({ success: false, message: 'Project not found' });
+// Get all projects
+router.get('/', async (req, res) => {
+  try {
+    const projects = await prisma.project.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        pages: {
+          select: {
+            id: true,
+            title: true,
+            version: true,
+            isPublished: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+    res.json({ success: true, data: projects });
+  } catch (error) {
+    console.error('Get projects error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch projects' });
   }
-  res.json({ success: true, data: project });
 });
 
+// Get single project
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: {
+        pages: {
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            title: true,
+            name: true,
+            description: true,
+            version: true,
+            isPublished: true,
+            createdAt: true,
+            updatedAt: true,
+            publishedAt: true,
+          },
+        },
+      },
+    });
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+    res.json({ success: true, data: project });
+  } catch (error) {
+    console.error('Get project error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch project' });
+  }
+});
+
+// Create project
 router.post('/',
-  body('name').notEmpty(),
-  (req, res) => {
+  body('name').notEmpty().withMessage('项目名称必填'),
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
     const { name, description } = req.body;
-    const id = crypto.randomUUID();
-    const project = {
-      id,
-      name,
-      description,
-      pages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    projects.set(id, project);
-    res.status(201).json({ success: true, data: project });
+    try {
+      const project = await prisma.project.create({
+        data: { name, description, createdById: 'default-user' },
+      });
+      res.status(201).json({ success: true, data: project });
+    } catch (error) {
+      console.error('Create project error:', error);
+      res.status(500).json({ success: false, message: 'Failed to create project' });
+    }
   }
 );
 
-router.put('/:id', (req, res) => {
+// Update project
+router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const project = projects.get(id);
-  if (!project) {
-    return res.status(404).json({ success: false, message: 'Project not found' });
-  }
-
   const { name, description } = req.body;
-  project.name = name || project.name;
-  project.description = description || project.description;
-  project.updatedAt = new Date().toISOString();
-  projects.set(id, project);
 
-  res.json({ success: true, data: project });
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    const updated = await prisma.project.update({
+      where: { id },
+      data: {
+        name: name || project.name,
+        description: description !== undefined ? description : project.description,
+        updatedAt: new Date(),
+      },
+    });
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('Update project error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update project' });
+  }
 });
 
-router.delete('/:id', (req, res) => {
+// Delete project
+router.delete('/:id', async (req, res) => {
   const { id } = req.params;
-  if (!projects.has(id)) {
-    return res.status(404).json({ success: false, message: 'Project not found' });
+  try {
+    await prisma.project.delete({ where: { id } });
+    res.json({ success: true, message: 'Project deleted' });
+  } catch (error) {
+    console.error('Delete project error:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete project' });
   }
-  projects.delete(id);
-  res.json({ success: true, message: 'Project deleted' });
 });
 
 export { router as projectsRouter };

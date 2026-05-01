@@ -1,8 +1,11 @@
 import React from 'react';
-import { LineChartComponent, LineChartMeta } from './LineChartComponent';
+import { LineChartComponent } from './LineChartComponent';
+import { LineChartMeta as LcLineChartMeta } from './LineChart.meta';
+import { BarChartMeta as LcBarChartMeta } from './BarChart.meta';
+import { PieChartMeta as LcPieChartMeta } from './PieChart.meta';
 import type { ComponentProps } from '@lowcode/types';
 
-export { LineChartMeta };
+export { LcLineChartMeta as LineChartMeta, LcBarChartMeta as BarChartMeta, LcPieChartMeta as PieChartMeta };
 
 export const LcLineChart = Object.assign(
   (props: ComponentProps) => {
@@ -33,11 +36,10 @@ export const LcLineChart = Object.assign(
         color={props.color as string}
         smooth={props.smooth as boolean}
         showArea={props.showArea as boolean}
-        height={props.height as number}
         style={props.style as React.CSSProperties}
         className={props.className as string}
       />
     );
   },
-  { meta: LineChartMeta }
+  { meta: LcLineChartMeta }
 );

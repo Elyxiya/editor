@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { Badge, Tooltip } from 'antd';
 import { DesktopOutlined, TabletOutlined, MobileOutlined } from '@ant-design/icons';
 import { useEditorStore } from '@/store/editorStore';
@@ -11,11 +11,25 @@ const deviceIcons: Record<string, React.ReactNode> = {
   mobile: <MobileOutlined />,
 };
 
-export const EditorStatusBar: React.FC = () => {
-  const { schema, selectedId, device, zoom } = useEditorStore();
+const countComponents = (components: any[]): number => {
+  let count = 0;
+  for (const comp of components) {
+    count += 1;
+    if (comp.children && comp.children.length > 0) {
+      count += countComponents(comp.children);
+    }
+  }
+  return count;
+};
+
+const EditorStatusBarInner: React.FC = () => {
+  const schema = useEditorStore((s) => s.schema);
+  const selectedId = useEditorStore((s) => s.selectedId);
+  const device = useEditorStore((s) => s.device);
+  const zoom = useEditorStore((s) => s.zoom);
 
   const canvasWidth = DEVICE_WIDTHS[device];
-  const componentCount = countComponents(schema.page.components);
+  const componentCount = useMemo(() => countComponents(schema.page.components), [schema.page.components]);
   const deviceLabel = DEVICE_LABELS[device];
 
   return (
@@ -70,13 +84,5 @@ export const EditorStatusBar: React.FC = () => {
   );
 };
 
-function countComponents(components: any[]): number {
-  let count = 0;
-  for (const comp of components) {
-    count += 1;
-    if (comp.children && comp.children.length > 0) {
-      count += countComponents(comp.children);
-    }
-  }
-  return count;
-}
+const StatusBar = memo(EditorStatusBarInner);
+export { StatusBar as EditorStatusBar };

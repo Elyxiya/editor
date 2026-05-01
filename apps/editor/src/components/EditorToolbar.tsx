@@ -6,7 +6,7 @@ import {
   ThunderboltOutlined, ApiOutlined, FileTextOutlined,
   AlignLeftOutlined, AlignCenterOutlined, AlignRightOutlined,
   VerticalAlignTopOutlined, VerticalAlignMiddleOutlined, VerticalAlignBottomOutlined,
-  InsertRowRightOutlined, InsertRowDownOutlined
+  InsertRowRightOutlined, InsertRowBelowOutlined, StarOutlined
 } from '@ant-design/icons';
 import { useEditorStore } from '@/store/editorStore';
 import { DEVICE_WIDTHS } from '@lowcode/utils';
@@ -16,9 +16,9 @@ import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
 import { LogicFlowEditor } from '@/components/LogicFlowEditor';
 import { DataSourceManagementPanel } from '@/components/DataSourceManagementPanel';
 import { PageManagementPanel } from '@/components/PageManagementPanel';
+import { TemplateManagementPanel } from '@/components/TemplateManagementPanel';
 import type { LogicFlow } from '@lowcode/logic-engine';
 import type { DataSource as DataSourceType } from '@lowcode/types';
-import type { MenuProps } from 'antd';
 
 export const EditorToolbar: React.FC = () => {
   const { schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage, selectedIds, alignComponents, distributeComponents } = useEditorStore();
@@ -32,6 +32,7 @@ export const EditorToolbar: React.FC = () => {
   const [showLogicFlowEditor, setShowLogicFlowEditor] = useState(false);
   const [showDataSourcePanel, setShowDataSourcePanel] = useState(false);
   const [showPagePanel, setShowPagePanel] = useState(false);
+  const [showTemplatePanel, setShowTemplatePanel] = useState(false);
   const [currentFlow, setCurrentFlow] = useState<LogicFlow | undefined>();
 
   // 页面管理
@@ -170,14 +171,17 @@ export const EditorToolbar: React.FC = () => {
     // 图表组件预览处理
     if (component.type === 'LineChart') {
       const LineChartComp = getComponent('LineChart');
+      if (!LineChartComp) return null;
       return <div key={component.id} style={{ width: '100%' }}><LineChartComp {...component.props} /></div>;
     }
     if (component.type === 'BarChart') {
       const BarChartComp = getComponent('BarChart');
+      if (!BarChartComp) return null;
       return <div key={component.id} style={{ width: '100%' }}><BarChartComp {...component.props} /></div>;
     }
     if (component.type === 'PieChart') {
       const PieChartComp = getComponent('PieChart');
+      if (!PieChartComp) return null;
       return <div key={component.id} style={{ width: '100%' }}><PieChartComp {...component.props} /></div>;
     }
 
@@ -240,7 +244,7 @@ export const EditorToolbar: React.FC = () => {
                     type: 'group',
                     children: [
                       { key: 'h', label: '水平等间距', icon: <InsertRowRightOutlined />, onClick: () => distributeComponents('horizontal') },
-                      { key: 'v', label: '垂直等间距', icon: <InsertRowDownOutlined />, onClick: () => distributeComponents('vertical') },
+                      { key: 'v', label: '垂直等间距', icon: <InsertRowBelowOutlined />, onClick: () => distributeComponents('vertical') },
                     ],
                   },
                 ],
@@ -258,6 +262,7 @@ export const EditorToolbar: React.FC = () => {
         <Space>
           <Tooltip title="历史记录"><Button icon={<HistoryOutlined />} onClick={() => setShowVersionPanel(true)} /></Tooltip>
           <Tooltip title="页面管理"><Button icon={<FileTextOutlined />} onClick={() => setShowPagePanel(true)} /></Tooltip>
+          <Tooltip title="模板市场"><Button icon={<StarOutlined />} onClick={() => setShowTemplatePanel(true)} /></Tooltip>
           <Tooltip title="数据源"><Button icon={<ApiOutlined />} onClick={() => setShowDataSourcePanel(true)} /></Tooltip>
           <Tooltip title="逻辑流程"><Button icon={<ThunderboltOutlined />} onClick={() => setShowLogicFlowEditor(true)} /></Tooltip>
           <Divider type="vertical" />
@@ -403,6 +408,16 @@ export const EditorToolbar: React.FC = () => {
             setPages(prev => [...prev, newPage]);
             message.success(`已复制页面: ${newPage.title}`);
           }
+        }}
+      />
+
+      {/* 模板市场面板 */}
+      <TemplateManagementPanel
+        open={showTemplatePanel}
+        onClose={() => setShowTemplatePanel(false)}
+        currentSchema={schema}
+        onLoadTemplate={(newSchema) => {
+          setSchema(newSchema);
         }}
       />
     </div>

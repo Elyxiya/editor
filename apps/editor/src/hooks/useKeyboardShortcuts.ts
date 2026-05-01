@@ -14,6 +14,10 @@ export function useKeyboardShortcuts() {
     pasteComponent,
     copyComponent,
     cutComponent,
+    bringToTop,
+    sendToBottom,
+    moveUp,
+    moveDown,
     isDirty,
   } = useEditorStore() as any;
 
@@ -88,6 +92,27 @@ export function useKeyboardShortcuts() {
     if (e.key === 'Escape') {
       useEditorStore.setState({ selectedId: null });
     }
+
+    // Layer management shortcuts
+    if (e.key === ']' && !isMetaOrCtrl && !e.shiftKey && !e.altKey) {
+      if (selectedId && !window.getSelection()?.toString()) {
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && !target.isContentEditable) {
+          e.preventDefault();
+          moveDown();
+        }
+      }
+    }
+
+    if (e.key === '[' && !isMetaOrCtrl && !e.shiftKey && !e.altKey) {
+      if (selectedId && !window.getSelection()?.toString()) {
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && !target.isContentEditable) {
+          e.preventDefault();
+          moveUp();
+        }
+      }
+    }
   }, [
     selectedId,
     clipboard,
@@ -99,6 +124,10 @@ export function useKeyboardShortcuts() {
     pasteComponent,
     copyComponent,
     cutComponent,
+    bringToTop,
+    sendToBottom,
+    moveUp,
+    moveDown,
     isDirty,
   ]);
 

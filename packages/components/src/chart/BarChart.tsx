@@ -1,8 +1,9 @@
 import React from 'react';
-import { BarChartComponent, BarChartMeta } from './BarChartComponent';
+import { BarChartComponent } from './BarChartComponent';
+import { BarChartMeta as LcBarChartMeta } from './BarChart.meta';
 import type { ComponentProps } from '@lowcode/types';
 
-export { BarChartMeta };
+export { LcBarChartMeta as BarChartMeta };
 
 export const LcBarChart = Object.assign(
   (props: ComponentProps) => {
@@ -33,11 +34,10 @@ export const LcBarChart = Object.assign(
         color={props.color as string}
         horizontal={props.horizontal as boolean}
         showLabel={props.showLabel as boolean}
-        height={props.height as number}
         style={props.style as React.CSSProperties}
         className={props.className as string}
       />
     );
   },
-  { meta: BarChartMeta }
+  { meta: LcBarChartMeta }
 );

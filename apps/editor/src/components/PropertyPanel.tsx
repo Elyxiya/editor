@@ -1,14 +1,65 @@
 import React, { useMemo } from 'react';
-import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider, Alert, Slider, Typography } from 'antd';
+import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider, Alert, Slider, Typography, message } from 'antd';
 import { useEditorStore } from '@/store/editorStore';
 import { findComponentById } from '@lowcode/schema';
 import { getComponentMeta } from '@lowcode/components';
-import type { PropSchema } from '@lowcode/types';
+import type { PropSchema, ValidationRule } from '@lowcode/types';
 import { EventBindingPanel } from './EventBindingPanel';
 import type { EventBinding } from '@lowcode/events';
 
+function buildValidator(rules: ValidationRule[]): any[] {
+  return rules.map((rule) => {
+    switch (rule.type) {
+      case 'required':
+        return { required: true, message: rule.message || '此字段必填' };
+      case 'min':
+        return { type: 'number', min: rule.value as number, message: rule.message || `最小值为 ${rule.value}` };
+      case 'max':
+        return { type: 'number', max: rule.value as number, message: rule.message || `最大值为 ${rule.value}` };
+      case 'pattern':
+        return { pattern: new RegExp(rule.value as string), message: rule.message || '格式不正确' };
+      case 'email':
+        return { type: 'email', message: rule.message || '请输入有效的邮箱地址' };
+      case 'phone':
+        return { pattern: /^1[3-9]\d{9}$/, message: rule.message || '请输入有效的手机号码' };
+      default:
+        return {};
+    }
+  });
+}
+
+function validateValue(value: unknown, rules: ValidationRule[]): string | null {
+  for (const rule of rules) {
+    switch (rule.type) {
+      case 'required':
+        if (value === undefined || value === null || value === '') return rule.message || '此字段必填';
+        break;
+      case 'min':
+        if (typeof value === 'number' && value < (rule.value as number)) return rule.message || `最小值为 ${rule.value}`;
+        if (typeof value === 'string' && value.length < (rule.value as number)) return rule.message || `最小长度为 ${rule.value}`;
+        break;
+      case 'max':
+        if (typeof value === 'number' && value > (rule.value as number)) return rule.message || `最大值为 ${rule.value}`;
+        if (typeof value === 'string' && value.length > (rule.value as number)) return rule.message || `最大长度为 ${rule.value}`;
+        break;
+      case 'pattern':
+        if (typeof value === 'string' && !new RegExp(rule.value as string).test(value)) return rule.message || '格式不正确';
+        break;
+      case 'email':
+        if (typeof value === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return rule.message || '请输入有效的邮箱地址';
+        break;
+      case 'phone':
+        if (typeof value === 'string' && !/^1[3-9]\d{9}$/.test(value)) return rule.message || '请输入有效的手机号码';
+        break;
+    }
+  }
+  return null;
+}
+
 export const PropertyPanel: React.FC = () => {
-  const { schema, selectedId, updateComponent } = useEditorStore();
+  const schema = useEditorStore((s) => s.schema);
+  const selectedId = useEditorStore((s) => s.selectedId);
+  const updateComponent = useEditorStore((s) => s.updateComponent);
 
   const selectedComponent = useMemo(() => {
     if (!selectedId) return null;
@@ -36,7 +87,7 @@ export const PropertyPanel: React.FC = () => {
   };
 
   const handleStyleChange = (key: string, value: unknown) => {
-    const currentStyle = selectedComponent.props?.style || {};
+    const currentStyle = (selectedComponent?.props?.style || {}) as Record<string, unknown>;
     const merged = { ...currentStyle, [key]: value };
     updateComponent(selectedId!, { style: merged });
   };
@@ -49,82 +100,124 @@ export const PropertyPanel: React.FC = () => {
     );
   }
 
-  const handlePropChange = (name: string, value: unknown) => {
-    updateComponent(selectedId!, { [name]: value });
-  };
-
   const basicProps = componentMeta?.propSchema.filter((p) => p.group === 'basic' || !p.group);
-  const styleProps = componentMeta?.propSchema.filter((p) => p.group === 'style');
   const dataProps = componentMeta?.propSchema.filter((p) => p.group === 'data');
 
   const renderFormItem = (prop: PropSchema) => {
     const value = selectedComponent.props[prop.name] ?? prop.defaultValue;
+    const rules = prop.validation ? buildValidator(prop.validation) : [];
+    const hasValidation = prop.validation && prop.validation.length > 0;
+
+    const handleChange = (newValue: unknown) => {
+      if (hasValidation) {
+        const error = validateValue(newValue, prop.validation!);
+        if (error) {
+          message.warning({ content: error, key: `prop-${prop.name}` });
+        }
+      }
+      updateComponent(selectedId!, { [prop.name]: newValue });
+    };
 
     switch (prop.type) {
       case 'string':
         return (
-          <Input
-            value={value as string}
-            onChange={(e) => handlePropChange(prop.name, e.target.value)}
-            placeholder={prop.tooltip}
-          />
+          <Form.Item
+            key={prop.name}
+            label={prop.label}
+            name={prop.name}
+            rules={rules}
+            validateStatus={hasValidation && validateValue(value, prop.validation!) ? 'error' : undefined}
+            help={hasValidation ? validateValue(value, prop.validation!) : undefined}
+          >
+            <Input
+              value={value as string}
+              onChange={(e) => handleChange(e.target.value)}
+              placeholder={prop.tooltip}
+            />
+          </Form.Item>
         );
       case 'number':
         return (
-          <InputNumber
-            value={value as number}
-            onChange={(v) => handlePropChange(prop.name, v)}
-            style={{ width: '100%' }}
-            min={prop.min}
-            max={prop.max}
-          />
+          <Form.Item
+            key={prop.name}
+            label={prop.label}
+            name={prop.name}
+            rules={rules}
+            validateStatus={hasValidation && validateValue(value, prop.validation!) ? 'error' : undefined}
+            help={hasValidation ? validateValue(value, prop.validation!) : undefined}
+          >
+            <InputNumber
+              value={value as number}
+              onChange={(v) => handleChange(v)}
+              style={{ width: '100%' }}
+              min={prop.min}
+              max={prop.max}
+            />
+          </Form.Item>
         );
       case 'boolean':
         return (
-          <Switch
-            checked={value as boolean}
-            onChange={(checked) => handlePropChange(prop.name, checked)}
-          />
+          <Form.Item key={prop.name} label={prop.label} name={prop.name} valuePropName="checked">
+            <Switch
+              checked={value as boolean}
+              onChange={(checked) => handleChange(checked)}
+            />
+          </Form.Item>
         );
       case 'select':
         return (
-          <Select
-            value={value as string}
-            onChange={(v) => handlePropChange(prop.name, v)}
-            options={prop.options}
-            style={{ width: '100%' }}
-          />
+          <Form.Item key={prop.name} label={prop.label} name={prop.name} rules={rules}>
+            <Select
+              value={value as string}
+              onChange={(v) => handleChange(v)}
+              options={prop.options}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
         );
       case 'array':
         return (
-          <Input.TextArea
-            value={Array.isArray(value) ? JSON.stringify(value, null, 2) : (value as string)}
-            onChange={(e) => {
-              try {
-                const parsed = JSON.parse(e.target.value || '[]');
-                handlePropChange(prop.name, Array.isArray(parsed) ? parsed : []);
-              } catch {
-                handlePropChange(prop.name, []);
-              }
-            }}
-            placeholder={'JSON 数组格式，例如：[{"title":"列名","dataIndex":"field"}]'}
-            rows={4}
-            style={{ fontFamily: 'monospace', fontSize: 12 }}
-          />
+          <Form.Item
+            key={prop.name}
+            label={prop.label}
+            name={prop.name}
+            rules={rules}
+            validateStatus={hasValidation && validateValue(value, prop.validation!) ? 'error' : undefined}
+            help={hasValidation ? validateValue(value, prop.validation!) : undefined}
+          >
+            <Input.TextArea
+              value={Array.isArray(value) ? JSON.stringify(value, null, 2) : (value as string)}
+              onChange={(e) => {
+                try {
+                  const parsed = JSON.parse(e.target.value || '[]');
+                  handleChange(Array.isArray(parsed) ? parsed : []);
+                } catch {
+                  handleChange([]);
+                }
+              }}
+              placeholder={'JSON 数组格式，例如：[{"title":"列名","dataIndex":"field"}]'}
+              rows={4}
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </Form.Item>
         );
       case 'color':
         return (
-          <ColorPicker
-            value={value as string}
-            onChange={(c) => handlePropChange(prop.name, c.toHexString())}
-          />
+          <Form.Item key={prop.name} label={prop.label} name={prop.name}>
+            <ColorPicker
+              value={value as string}
+              onChange={(c) => handleChange(c.toHexString())}
+            />
+          </Form.Item>
         );
       default:
         return (
-          <Input
-            value={value as string}
-            onChange={(e) => handlePropChange(prop.name, e.target.value)}
-          />
+          <Form.Item key={prop.name} label={prop.label} name={prop.name} rules={rules}>
+            <Input
+              value={value as string}
+              onChange={(e) => handleChange(e.target.value)}
+            />
+          </Form.Item>
         );
     }
   };
@@ -142,11 +235,7 @@ export const PropertyPanel: React.FC = () => {
             <Input value={componentMeta?.label || selectedComponent.type} disabled />
           </Form.Item>
           <Divider style={{ margin: '12px 0' }} />
-          {basicProps?.map((prop) => (
-            <Form.Item key={prop.name} label={prop.label}>
-              {renderFormItem(prop)}
-            </Form.Item>
-          ))}
+          {basicProps?.map((prop) => renderFormItem(prop))}
         </Form>
       ),
     },
@@ -156,7 +245,7 @@ export const PropertyPanel: React.FC = () => {
       children: (
         <Form layout="vertical" size="small">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Form.Item label="margin-top" style={{ marginBottom: 8 }}>
+            <Form.Item label="margin-top" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'marginTop')}
                 onChange={(v) => handleStyleChange('marginTop', v)}
@@ -166,7 +255,7 @@ export const PropertyPanel: React.FC = () => {
                 addonAfter="px"
               />
             </Form.Item>
-            <Form.Item label="margin-right" style={{ marginBottom: 8 }}>
+            <Form.Item label="margin-right" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'marginRight')}
                 onChange={(v) => handleStyleChange('marginRight', v)}
@@ -176,7 +265,7 @@ export const PropertyPanel: React.FC = () => {
                 addonAfter="px"
               />
             </Form.Item>
-            <Form.Item label="margin-bottom" style={{ marginBottom: 8 }}>
+            <Form.Item label="margin-bottom" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'marginBottom')}
                 onChange={(v) => handleStyleChange('marginBottom', v)}
@@ -186,7 +275,7 @@ export const PropertyPanel: React.FC = () => {
                 addonAfter="px"
               />
             </Form.Item>
-            <Form.Item label="margin-left" style={{ marginBottom: 8 }}>
+            <Form.Item label="margin-left" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'marginLeft')}
                 onChange={(v) => handleStyleChange('marginLeft', v)}
@@ -202,7 +291,7 @@ export const PropertyPanel: React.FC = () => {
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>内边距 (padding)</Typography.Text>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-            <Form.Item label="padding-top" style={{ marginBottom: 8 }}>
+            <Form.Item label="padding-top" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'paddingTop')}
                 onChange={(v) => handleStyleChange('paddingTop', v)}
@@ -212,7 +301,7 @@ export const PropertyPanel: React.FC = () => {
                 addonAfter="px"
               />
             </Form.Item>
-            <Form.Item label="padding-right" style={{ marginBottom: 8 }}>
+            <Form.Item label="padding-right" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'paddingRight')}
                 onChange={(v) => handleStyleChange('paddingRight', v)}
@@ -222,7 +311,7 @@ export const PropertyPanel: React.FC = () => {
                 addonAfter="px"
               />
             </Form.Item>
-            <Form.Item label="padding-bottom" style={{ marginBottom: 8 }}>
+            <Form.Item label="padding-bottom" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'paddingBottom')}
                 onChange={(v) => handleStyleChange('paddingBottom', v)}
@@ -232,7 +321,7 @@ export const PropertyPanel: React.FC = () => {
                 addonAfter="px"
               />
             </Form.Item>
-            <Form.Item label="padding-left" style={{ marginBottom: 8 }}>
+            <Form.Item label="padding-left" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'paddingLeft')}
                 onChange={(v) => handleStyleChange('paddingLeft', v)}
@@ -248,7 +337,7 @@ export const PropertyPanel: React.FC = () => {
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>尺寸 (size)</Typography.Text>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-            <Form.Item label="宽度" style={{ marginBottom: 8 }}>
+            <Form.Item label="宽度" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'width')}
                 onChange={(v) => handleStyleChange('width', v)}
@@ -259,7 +348,7 @@ export const PropertyPanel: React.FC = () => {
                 placeholder="auto"
               />
             </Form.Item>
-            <Form.Item label="高度" style={{ marginBottom: 8 }}>
+            <Form.Item label="高度" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'height')}
                 onChange={(v) => handleStyleChange('height', v)}
@@ -270,7 +359,7 @@ export const PropertyPanel: React.FC = () => {
                 placeholder="auto"
               />
             </Form.Item>
-            <Form.Item label="最大宽度" style={{ marginBottom: 8 }}>
+            <Form.Item label="最大宽度" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'maxWidth')}
                 onChange={(v) => handleStyleChange('maxWidth', v)}
@@ -281,7 +370,7 @@ export const PropertyPanel: React.FC = () => {
                 placeholder="none"
               />
             </Form.Item>
-            <Form.Item label="最小高度" style={{ marginBottom: 8 }}>
+            <Form.Item label="最小高度" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'minHeight')}
                 onChange={(v) => handleStyleChange('minHeight', v)}
@@ -297,7 +386,7 @@ export const PropertyPanel: React.FC = () => {
           <Divider style={{ margin: '8px 0' }} />
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>背景 (background)</Typography.Text>
 
-          <Form.Item label="背景色" style={{ marginBottom: 8 }}>
+          <Form.Item label="背景色" style={{ marginBottom: 0 }}>
             <ColorPicker
               value={getStyleValue(selectedComponent.props, 'backgroundColor') || '#ffffff'}
               onChange={(c) => handleStyleChange('backgroundColor', c.toHexString())}
@@ -305,7 +394,7 @@ export const PropertyPanel: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item label="背景图片 URL" style={{ marginBottom: 8 }}>
+          <Form.Item label="背景图片 URL" style={{ marginBottom: 0 }}>
             <Input
               value={getStyleValue(selectedComponent.props, 'backgroundImage') || ''}
               onChange={(e) => handleStyleChange('backgroundImage', e.target.value)}
@@ -316,7 +405,7 @@ export const PropertyPanel: React.FC = () => {
           <Divider style={{ margin: '8px 0' }} />
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>边框 (border)</Typography.Text>
 
-          <Form.Item label="边框宽度" style={{ marginBottom: 8 }}>
+          <Form.Item label="边框宽度" style={{ marginBottom: 0 }}>
             <InputNumber
               value={getStyleValue(selectedComponent.props, 'borderWidth')}
               onChange={(v) => handleStyleChange('borderWidth', v)}
@@ -327,7 +416,7 @@ export const PropertyPanel: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item label="边框颜色" style={{ marginBottom: 8 }}>
+          <Form.Item label="边框颜色" style={{ marginBottom: 0 }}>
             <ColorPicker
               value={getStyleValue(selectedComponent.props, 'borderColor') || '#d9d9d9'}
               onChange={(c) => handleStyleChange('borderColor', c.toHexString())}
@@ -335,7 +424,7 @@ export const PropertyPanel: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item label="边框样式" style={{ marginBottom: 8 }}>
+          <Form.Item label="边框样式" style={{ marginBottom: 0 }}>
             <Select
               value={getStyleValue(selectedComponent.props, 'borderStyle') || 'solid'}
               onChange={(v) => handleStyleChange('borderStyle', v)}
@@ -350,7 +439,7 @@ export const PropertyPanel: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item label="圆角" style={{ marginBottom: 8 }}>
+          <Form.Item label="圆角" style={{ marginBottom: 0 }}>
             <InputNumber
               value={getStyleValue(selectedComponent.props, 'borderRadius')}
               onChange={(v) => handleStyleChange('borderRadius', v)}
@@ -364,7 +453,7 @@ export const PropertyPanel: React.FC = () => {
           <Divider style={{ margin: '8px 0' }} />
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>阴影 (shadow)</Typography.Text>
 
-          <Form.Item label="阴影效果" style={{ marginBottom: 8 }}>
+          <Form.Item label="阴影效果" style={{ marginBottom: 0 }}>
             <Select
               value={getStyleValue(selectedComponent.props, 'boxShadow') || 'none'}
               onChange={(v) => handleStyleChange('boxShadow', v)}
@@ -385,7 +474,7 @@ export const PropertyPanel: React.FC = () => {
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>定位 (position)</Typography.Text>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            <Form.Item label="定位方式" style={{ marginBottom: 8 }}>
+            <Form.Item label="定位方式" style={{ marginBottom: 0 }}>
               <Select
                 value={getStyleValue(selectedComponent.props, 'position') || 'relative'}
                 onChange={(v) => handleStyleChange('position', v)}
@@ -399,7 +488,7 @@ export const PropertyPanel: React.FC = () => {
                 ]}
               />
             </Form.Item>
-            <Form.Item label="z-index" style={{ marginBottom: 8 }}>
+            <Form.Item label="z-index" style={{ marginBottom: 0 }}>
               <InputNumber
                 value={getStyleValue(selectedComponent.props, 'zIndex') ?? 0}
                 onChange={(v) => handleStyleChange('zIndex', v)}
@@ -408,7 +497,7 @@ export const PropertyPanel: React.FC = () => {
                 max={9999}
               />
             </Form.Item>
-            <Form.Item label="透明度" style={{ marginBottom: 8 }}>
+            <Form.Item label="透明度" style={{ marginBottom: 0 }}>
               <Slider
                 value={getStyleValue(selectedComponent.props, 'opacity') ?? 1}
                 onChange={(v) => handleStyleChange('opacity', v)}
@@ -427,11 +516,7 @@ export const PropertyPanel: React.FC = () => {
       label: '数据',
       children: (
         <Form layout="vertical" size="small">
-          {dataProps?.map((prop) => (
-            <Form.Item key={prop.name} label={prop.label}>
-              {renderFormItem(prop)}
-            </Form.Item>
-          ))}
+          {dataProps?.map((prop) => renderFormItem(prop))}
         </Form>
       ),
     },
@@ -460,7 +545,7 @@ export const PropertyPanel: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '12px 0' }}>
+    <div style={{ padding: '12px 16px' }}>
       <Tabs items={tabItems} defaultActiveKey="basic" size="small" />
     </div>
   );

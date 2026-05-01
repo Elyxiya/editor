@@ -47,8 +47,7 @@ import {
   LcStatistic,
   LcSkeleton,
 } from './advanced';
-import { LineChart, BarChart, PieChart } from './chart';
-import { LineChartMeta, BarChartMeta, PieChartMeta } from './chart';
+import { LcLineChart, LcBarChart, LcPieChart } from './chart';
 
 export const componentRegistry: Map<string, ComponentMeta> = new Map();
 
@@ -73,9 +72,9 @@ const allComponents: Array<{ meta: ComponentMeta; component: React.ComponentType
   { meta: (LcProgress as unknown as ComponentWithMeta).meta, component: LcProgress },
   { meta: (LcStatistic as unknown as ComponentWithMeta).meta, component: LcStatistic },
   { meta: (LcSkeleton as unknown as ComponentWithMeta).meta, component: LcSkeleton },
-  { meta: (LineChart as unknown as ComponentWithMeta).meta, component: LineChart },
-  { meta: (BarChart as unknown as ComponentWithMeta).meta, component: BarChart },
-  { meta: (PieChart as unknown as ComponentWithMeta).meta, component: PieChart },
+  { meta: (LcLineChart as unknown as ComponentWithMeta).meta, component: LcLineChart },
+  { meta: (LcBarChart as unknown as ComponentWithMeta).meta, component: LcBarChart },
+  { meta: (LcPieChart as unknown as ComponentWithMeta).meta, component: LcPieChart },
 ];
 
 allComponents.forEach(({ meta }) => {

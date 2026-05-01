@@ -1,8 +1,9 @@
 import React from 'react';
-import { PieChartComponent, PieChartMeta } from './PieChartComponent';
+import { PieChartComponent } from './PieChartComponent';
+import { PieChartMeta as LcPieChartMeta } from './PieChart.meta';
 import type { ComponentProps } from '@lowcode/types';
 
-export { PieChartMeta };
+export { LcPieChartMeta as PieChartMeta };
 
 interface PieDataItem {
   name: string;
@@ -34,11 +35,10 @@ export const LcPieChart = Object.assign(
         data={data}
         showLegend={props.showLegend as boolean}
         roseType={props.roseType as boolean}
-        height={props.height as number}
         style={props.style as React.CSSProperties}
         className={props.className as string}
       />
     );
   },
-  { meta: PieChartMeta }
+  { meta: LcPieChartMeta }
 );

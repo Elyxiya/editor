@@ -1,242 +1,368 @@
-import { Router, Request } from 'express';
+import { Router } from 'express';
 import { body, param, validationResult } from 'express-validator';
+import { prisma } from '../prisma.js';
 
 const router = Router();
 
-// 页面数据存储
-const pages = new Map<string, any>();
-// 版本历史存储
-const pageVersions = new Map<string, any[]>();
-
-// 获取所有页面
-router.get('/', (req, res) => {
-  const allPages = [...pages.values()];
-  res.json({ success: true, data: allPages });
+// Get all pages
+router.get('/', async (req, res) => {
+  try {
+    const pages = await prisma.page.findMany({
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        title: true,
+        description: true,
+        version: true,
+        isPublished: true,
+        projectId: true,
+        createdAt: true,
+        updatedAt: true,
+        publishedAt: true,
+      },
+    });
+    res.json({ success: true, data: pages });
+  } catch (error) {
+    console.error('Get pages error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch pages' });
+  }
 });
 
-// 获取单个页面
+// Get single page
 router.get('/:id',
   param('id').notEmpty(),
-  (req: Request, res) => {
-    const id = req.params['id']!;
-    const page = pages.get(id);
-    if (!page) {
-      return res.status(404).json({ success: false, message: 'Page not found' });
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
     }
-    res.json({ success: true, data: page });
+
+    const id = req.params['id']!;
+    try {
+      const page = await prisma.page.findUnique({ where: { id } });
+      if (!page) {
+        return res.status(404).json({ success: false, message: 'Page not found' });
+      }
+      res.json({
+        success: true,
+        data: {
+          ...page,
+          schema: JSON.parse(page.schema),
+        },
+      });
+    } catch (error) {
+      console.error('Get page error:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch page' });
+    }
   }
 );
 
-// 创建页面
+// Create page
 router.post('/',
-  body('name').notEmpty(),
-  body('title').notEmpty(),
-  body('schema').isObject(),
-  (req, res) => {
+  body('name').notEmpty().withMessage('页面名称必填'),
+  body('title').notEmpty().withMessage('页面标题必填'),
+  body('schema').isObject().withMessage('Schema 必须是对象'),
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
     const { name, title, description, schema } = req.body;
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const page = {
-      id,
-      name,
-      title,
-      description,
-      schema,
-      version: 1,
-      isPublished: false,
-      createdAt: now,
-      updatedAt: now,
-    };
 
-    pages.set(id, page);
-    // 记录初始版本
-    pageVersions.set(id, [{
-      version: 1,
-      schema: JSON.stringify(schema),
-      createdAt: now,
-      comment: '初始版本'
-    }]);
+    try {
+      const page = await prisma.page.create({
+        data: {
+          name,
+          title,
+          description,
+          schema: JSON.stringify(schema),
+          version: 1,
+          createdById: 'default-user',
+        },
+      });
 
-    res.status(201).json({ success: true, data: page });
+      // Record initial version
+      await prisma.pageVersion.create({
+        data: {
+          pageId: page.id,
+          version: 1,
+          schema: JSON.stringify(schema),
+          createdById: 'default-user',
+          comment: '初始版本',
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          ...page,
+          schema: JSON.parse(page.schema),
+        },
+      });
+    } catch (error) {
+      console.error('Create page error:', error);
+      res.status(500).json({ success: false, message: 'Failed to create page' });
+    }
   }
 );
 
-// 更新页面（保存版本）
+// Update page (auto-save version)
 router.put('/:id',
   param('id').notEmpty(),
   body('schema').isObject(),
-  (req: Request, res) => {
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
     const id = req.params['id']!;
-    const page = pages.get(id);
+    const { schema, comment } = req.body;
+
+    try {
+      const existing = await prisma.page.findUnique({ where: { id } });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Page not found' });
+      }
+
+      const newVersion = existing.version + 1;
+
+      const page = await prisma.page.update({
+        where: { id },
+        data: {
+          schema: JSON.stringify(schema),
+          version: newVersion,
+          updatedAt: new Date(),
+        },
+      });
+
+      await prisma.pageVersion.create({
+        data: {
+          pageId: id,
+          version: newVersion,
+          schema: JSON.stringify(schema),
+          createdById: 'default-user',
+          comment: comment || `版本 ${newVersion}`,
+        },
+      });
+
+      res.json({
+        success: true,
+        data: {
+          ...page,
+          schema: JSON.parse(page.schema),
+        },
+      });
+    } catch (error) {
+      console.error('Update page error:', error);
+      res.status(500).json({ success: false, message: 'Failed to update page' });
+    }
+  }
+);
+
+// Delete page
+router.delete('/:id',
+  param('id').notEmpty(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const id = req.params['id']!;
+    try {
+      await prisma.pageVersion.deleteMany({ where: { pageId: id } });
+      await prisma.page.delete({ where: { id } });
+      res.json({ success: true, message: 'Page deleted' });
+    } catch (error) {
+      console.error('Delete page error:', error);
+      res.status(500).json({ success: false, message: 'Failed to delete page' });
+    }
+  }
+);
+
+// Get page version history
+router.get('/:id/versions', async (req, res) => {
+  const id = req.params['id']!;
+  try {
+    const page = await prisma.page.findUnique({ where: { id } });
     if (!page) {
       return res.status(404).json({ success: false, message: 'Page not found' });
     }
 
-    const { schema, comment } = req.body;
-    const newVersion = page.version + 1;
-    const now = new Date().toISOString();
-
-    // 保存版本历史
-    const versions = pageVersions.get(id) || [];
-    versions.push({
-      version: newVersion,
-      schema: JSON.stringify(schema),
-      createdAt: now,
-      comment: comment || `版本 ${newVersion}`
+    const versions = await prisma.pageVersion.findMany({
+      where: { pageId: id },
+      orderBy: { version: 'desc' },
+      select: {
+        version: true,
+        schema: true,
+        createdAt: true,
+        comment: true,
+      },
     });
-    pageVersions.set(id, versions);
 
-    // 更新页面
-    page.schema = schema;
-    page.version = newVersion;
-    page.updatedAt = now;
-    pages.set(id, page);
-
-    res.json({ success: true, data: page });
+    res.json({ success: true, data: versions });
+  } catch (error) {
+    console.error('Get versions error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch versions' });
   }
-);
+});
 
-// 删除页面
-router.delete('/:id',
-  param('id').notEmpty(),
-  (req: Request, res) => {
-    const id = req.params['id']!;
-    if (!pages.has(id)) {
+// Get specific version
+router.get('/:id/versions/:version', async (req, res) => {
+  const id = req.params['id']!;
+  const versionStr = req.params['version']!;
+  const versionNum = parseInt(versionStr, 10);
+
+  try {
+    const version = await prisma.pageVersion.findUnique({
+      where: { pageId_version: { pageId: id, version: versionNum } },
+    });
+
+    if (!version) {
+      return res.status(404).json({ success: false, message: 'Version not found' });
+    }
+
+    res.json({ success: true, data: version });
+  } catch (error) {
+    console.error('Get version error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch version' });
+  }
+});
+
+// Rollback to version
+router.post('/:id/rollback/:version', async (req, res) => {
+  const id = req.params['id']!;
+  const versionStr = req.params['version']!;
+  const versionNum = parseInt(versionStr, 10);
+
+  try {
+    const page = await prisma.page.findUnique({ where: { id } });
+    if (!page) {
       return res.status(404).json({ success: false, message: 'Page not found' });
     }
-    pages.delete(id);
-    pageVersions.delete(id);
-    res.json({ success: true, message: 'Page deleted' });
-  }
-);
 
-// 获取页面版本历史
-router.get('/:id/versions', (req, res) => {
-  const id = req.params['id']!;
-  const page = pages.get(id);
-  if (!page) {
-    return res.status(404).json({ success: false, message: 'Page not found' });
-  }
-  const versions = pageVersions.get(id) || [];
-  res.json({ success: true, data: versions });
-});
+    const targetVersion = await prisma.pageVersion.findUnique({
+      where: { pageId_version: { pageId: id, version: versionNum } },
+    });
 
-// 获取指定版本详情
-router.get('/:id/versions/:version', (req, res) => {
-  const id = req.params['id']!;
-  const versionStr = req.params['version']!;
-  const versionNum = parseInt(versionStr, 10);
-
-  const versions = pageVersions.get(id) || [];
-  const targetVersion = versions.find((v: any) => v.version === versionNum);
-
-  if (!targetVersion) {
-    return res.status(404).json({ success: false, message: 'Version not found' });
-  }
-
-  res.json({ success: true, data: targetVersion });
-});
-
-// 回滚到指定版本
-router.post('/:id/rollback/:version', (req, res) => {
-  const id = req.params['id']!;
-  const versionStr = req.params['version']!;
-  const versionNum = parseInt(versionStr, 10);
-
-  const page = pages.get(id);
-  if (!page) {
-    return res.status(404).json({ success: false, message: 'Page not found' });
-  }
-
-  const versions = pageVersions.get(id) || [];
-  const targetVersion = versions.find((v: any) => v.version === versionNum);
-
-  if (!targetVersion) {
-    return res.status(404).json({ success: false, message: 'Version not found' });
-  }
-
-  const now = new Date().toISOString();
-  const newVersion = page.version + 1;
-
-  // 保存当前版本到历史（回滚前状态）
-  versions.push({
-    version: newVersion,
-    schema: JSON.stringify(page.schema),
-    createdAt: now,
-    comment: `回滚前版本（v${newVersion - 1}）`
-  });
-  pageVersions.set(id, versions);
-
-  // 执行回滚
-  page.schema = JSON.parse(targetVersion.schema);
-  page.version = newVersion;
-  page.updatedAt = now;
-  pages.set(id, page);
-
-  res.json({
-    success: true,
-    data: page,
-    message: `已回滚到版本 ${versionNum}，当前版本为 ${newVersion}`
-  });
-});
-
-// 发布页面
-router.post('/:id/publish', (req, res) => {
-  const id = req.params['id']!;
-  const page = pages.get(id);
-  if (!page) {
-    return res.status(404).json({ success: false, message: 'Page not found' });
-  }
-
-  page.isPublished = true;
-  page.publishedAt = new Date().toISOString();
-  pages.set(id, page);
-
-  res.json({ success: true, data: page });
-});
-
-// 取消发布页面
-router.post('/:id/unpublish', (req, res) => {
-  const id = req.params['id']!;
-  const page = pages.get(id);
-  if (!page) {
-    return res.status(404).json({ success: false, message: 'Page not found' });
-  }
-
-  page.isPublished = false;
-  page.publishedAt = null;
-  pages.set(id, page);
-
-  res.json({ success: true, data: page });
-});
-
-// 导出页面代码
-router.get('/:id/export', (req, res) => {
-  const id = req.params['id']!;
-  const format = req.query['format'] as string || 'zip';
-
-  const page = pages.get(id);
-  if (!page) {
-    return res.status(404).json({ success: false, message: 'Page not found' });
-  }
-
-  // 返回导出的元信息，实际代码生成在前端完成
-  res.json({
-    success: true,
-    data: {
-      pageId: page.id,
-      pageName: page.name,
-      pageTitle: page.title,
-      version: page.version,
-      format,
-      generatedAt: new Date().toISOString()
+    if (!targetVersion) {
+      return res.status(404).json({ success: false, message: 'Version not found' });
     }
-  });
+
+    const newVersion = page.version + 1;
+
+    const updated = await prisma.page.update({
+      where: { id },
+      data: {
+        schema: targetVersion.schema,
+        version: newVersion,
+        updatedAt: new Date(),
+      },
+    });
+
+    await prisma.pageVersion.create({
+      data: {
+        pageId: id,
+        version: newVersion,
+        schema: targetVersion.schema,
+        createdById: 'default-user',
+        comment: `回滚到 v${versionNum}`,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...updated,
+        schema: JSON.parse(updated.schema),
+      },
+      message: `已回滚到版本 ${versionNum}，当前版本为 ${newVersion}`,
+    });
+  } catch (error) {
+    console.error('Rollback error:', error);
+    res.status(500).json({ success: false, message: 'Failed to rollback' });
+  }
+});
+
+// Publish page
+router.post('/:id/publish', async (req, res) => {
+  const id = req.params['id']!;
+  try {
+    const page = await prisma.page.update({
+      where: { id },
+      data: {
+        isPublished: true,
+        publishedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    res.json({
+      success: true,
+      data: {
+        ...page,
+        schema: JSON.parse(page.schema),
+      },
+    });
+  } catch (error) {
+    console.error('Publish error:', error);
+    res.status(500).json({ success: false, message: 'Failed to publish page' });
+  }
+});
+
+// Unpublish page
+router.post('/:id/unpublish', async (req, res) => {
+  const id = req.params['id']!;
+  try {
+    const page = await prisma.page.update({
+      where: { id },
+      data: {
+        isPublished: false,
+        publishedAt: null,
+        updatedAt: new Date(),
+      },
+    });
+    res.json({
+      success: true,
+      data: {
+        ...page,
+        schema: JSON.parse(page.schema),
+      },
+    });
+  } catch (error) {
+    console.error('Unpublish error:', error);
+    res.status(500).json({ success: false, message: 'Failed to unpublish page' });
+  }
+});
+
+// Export page
+router.get('/:id/export', async (req, res) => {
+  const id = req.params['id']!;
+  const format = (req.query['format'] as string) || 'zip';
+
+  try {
+    const page = await prisma.page.findUnique({ where: { id } });
+    if (!page) {
+      return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        pageId: page.id,
+        pageName: page.name,
+        pageTitle: page.title,
+        version: page.version,
+        format,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ success: false, message: 'Failed to export page' });
+  }
 });
 
 export { router as pagesRouter };

@@ -6,7 +6,7 @@
 
 import React, { useState, useCallback } from 'react';
 import {
-  Card, Table, Button, Space, Tag, Modal, Form, Input, Select, Switch,
+  Table, Button, Space, Tag, Modal, Form, Input, Select, Switch,
   InputNumber, Divider, Popconfirm, Typography, Empty, message, Tabs, Alert,
 } from 'antd';
 import {

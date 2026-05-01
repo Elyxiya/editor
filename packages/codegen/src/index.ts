@@ -184,25 +184,10 @@ function kebabToPascalCase(str: string): string {
 }
 
 /**
- * 将 kebab-case 转换为 camelCase
- */
-function kebabToCamelCase(str: string): string {
-  const pascal = kebabToPascalCase(str);
-  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
-}
-
-/**
  * 首字母大写
  */
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-/**
- * 生成唯一的组件变量名
- */
-function _generateComponentVarName(type: string, index: number): string {
-  return `${kebabToCamelCase(type)}${index > 0 ? index : ''}`;
 }
 
 /**

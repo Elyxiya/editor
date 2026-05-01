@@ -85,3 +85,19 @@ model DataSource {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Template {
+  id          String   @id @default(uuid())
+  name        String
+  title       String
+  description String?
+  category    String   @default("general")
+  thumbnail   String?
+  schema      String
+  componentCount Int   @default(0)
+  tags        String   @default("[]")
+  isPublic    Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

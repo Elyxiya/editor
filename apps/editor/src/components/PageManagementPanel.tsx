@@ -6,14 +6,22 @@
 
 import React, { useState, useCallback } from 'react';
 import {
-  Modal, Button, Space, Tag, Typography, Input, Menu, Dropdown, Empty,
+  Modal, Button, Space, Tag, Typography, Input, Dropdown, Empty,
   message, Divider,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, EditOutlined, CopyOutlined,
   MoreOutlined, CheckOutlined, CloseOutlined, FileTextOutlined, EyeOutlined,
 } from '@ant-design/icons';
-import type { PageItem } from '@lowcode/types';
+
+interface PageItem {
+  id: string;
+  title: string;
+  name: string;
+  version: number;
+  isPublished: boolean;
+  updatedAt: string;
+}
 
 const { Text, Paragraph } = Typography;
 

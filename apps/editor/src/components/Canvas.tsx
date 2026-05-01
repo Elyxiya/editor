@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Empty } from 'antd';
@@ -7,8 +7,13 @@ import { SortableComponent } from './SortableComponent';
 import { DEVICE_WIDTHS } from '@lowcode/utils';
 import styles from './Canvas.module.css';
 
-export const Canvas: React.FC = () => {
-  const { schema, selectedId, device, selectComponent } = useEditorStore();
+const CanvasInner: React.FC = () => {
+  const schema = useEditorStore((s) => s.schema);
+  const selectedId = useEditorStore((s) => s.selectedId);
+  const device = useEditorStore((s) => s.device);
+  const zoom = useEditorStore((s) => s.zoom);
+  const selectComponent = useEditorStore((s) => s.selectComponent);
+
   const { setNodeRef: setCanvasRef, isOver: isCanvasOver } = useDroppable({ id: 'canvas' });
 
   const componentIds = useMemo(
@@ -25,7 +30,7 @@ export const Canvas: React.FC = () => {
   };
 
   return (
-    <div className={styles.canvasWrapper}>
+    <div className={styles.canvasWrapper} style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}>
       <div
         ref={setCanvasRef}
         className={`${styles.canvas} ${isCanvasOver ? styles.dragOver : ''}`}
@@ -65,3 +70,5 @@ export const Canvas: React.FC = () => {
     </div>
   );
 };
+
+export const Canvas = memo(CanvasInner);
