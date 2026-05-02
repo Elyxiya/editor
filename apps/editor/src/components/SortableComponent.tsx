@@ -57,7 +57,7 @@ const SortableComponentInner: React.FC<SortableComponentProps> = ({
   isSelected,
 }) => {
   const { bringToTop, sendToBottom, moveUp, moveDown, removeComponent, copyComponent, cutComponent, setOverContainerId, overContainerId } = useLayerActions();
-  const { selectComponent, toggleComponentSelection } = useSelectionActions();
+  const { selectComponent, toggleComponentSelection, selectedId: selId } = useSelectionActions();
 
   const isContainer = component.children !== undefined;
 
@@ -85,17 +85,22 @@ const SortableComponentInner: React.FC<SortableComponentProps> = ({
     data: { type: 'dropZone', containerId: component.id },
   });
 
+  const overContainerIdRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    overContainerIdRef.current = overContainerId;
+  }, [overContainerId]);
+
   useEffect(() => {
     if (isOverDropZone && isContainer) {
       setOverContainerId(component.id);
     } else if (!isOverDropZone && !isDragging) {
-      if (overContainerId === component.id) {
+      if (overContainerIdRef.current === component.id) {
         setOverContainerId(null);
       }
     }
-  }, [isOverDropZone, isContainer, component.id, isDragging, overContainerId]);
+  }, [isOverDropZone, isContainer, component.id, isDragging, setOverContainerId]);
 
-  const { selectedId: selId } = useEditorStore();
   const style: React.CSSProperties = useMemo(
     () => ({
       transform: CSS.Transform.toString(transform),
@@ -236,6 +241,8 @@ export const SortableComponent = memo(SortableComponentInner, (prev, next) => {
   return (
     prev.component.id === next.component.id &&
     prev.isSelected === next.isSelected &&
-    prev.component.label === next.component.label
+    prev.component.label === next.component.label &&
+    (prev.component.children?.length ?? 0) === (next.component.children?.length ?? 0) &&
+    prev.component.props === next.component.props
   );
 });

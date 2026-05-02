@@ -6,6 +6,18 @@ interface DynamicComponentProps {
   component: PageComponent;
 }
 
+interface DynamicComponentListProps {
+  components: PageComponent[];
+}
+
+const DynamicComponentList: React.FC<DynamicComponentListProps> = memo(({ components }) => (
+  <>
+    {components.map((child) => (
+      <DynamicComponent key={child.id} component={child} />
+    ))}
+  </>
+));
+
 export const DynamicComponent: React.FC<DynamicComponentProps> = memo(({ component }) => {
   const Component = getComponent(component.type);
 
@@ -17,5 +29,14 @@ export const DynamicComponent: React.FC<DynamicComponentProps> = memo(({ compone
     );
   }
 
-  return <Component {...component.props} />;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { children: _childrenFromProps, ...restProps } = component.props || {};
+
+  return (
+    <Component {...restProps}>
+      {component.children && (
+        <DynamicComponentList components={component.children} />
+      )}
+    </Component>
+  );
 });

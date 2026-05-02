@@ -1,13 +1,23 @@
+/**
+ * Projects routes — all operations require authentication
+ */
+
 import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../prisma.js';
+import { requireAuth, getAuthenticatedUserId } from '../middleware/auth.js';
 
 const router = Router();
 
-// Get all projects
+// All project routes require authentication
+router.use(requireAuth);
+
+// Get all projects (owned by current user)
 router.get('/', async (req, res) => {
+  const userId = getAuthenticatedUserId(req);
   try {
     const projects = await prisma.project.findMany({
+      where: { createdById: userId! },
       orderBy: { updatedAt: 'desc' },
       include: {
         pages: {
@@ -31,6 +41,7 @@ router.get('/', async (req, res) => {
 // Get single project
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
+  const userId = getAuthenticatedUserId(req);
   try {
     const project = await prisma.project.findUnique({
       where: { id },
@@ -54,6 +65,10 @@ router.get('/:id', async (req, res) => {
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
+    // Only owner can view
+    if (project.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
     res.json({ success: true, data: project });
   } catch (error) {
     console.error('Get project error:', error);
@@ -71,9 +86,15 @@ router.post('/',
     }
 
     const { name, description } = req.body;
+    const userId = getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ success: false, message: '认证失败' });
+      return;
+    }
+
     try {
       const project = await prisma.project.create({
-        data: { name, description, createdById: 'default-user' },
+        data: { name, description, createdById: userId },
       });
       res.status(201).json({ success: true, data: project });
     } catch (error) {
@@ -84,35 +105,50 @@ router.post('/',
 );
 
 // Update project
-router.put('/:id', async (req, res) => {
-  const { id } = req.params;
-  const { name, description } = req.body;
+router.put('/:id',
+  body('name').optional().isString(),
+  body('description').optional().isString(),
+  async (req, res) => {
+    const { id } = req.params;
+    const { name, description } = req.body;
+    const userId = getAuthenticatedUserId(req);
+    try {
+      const project = await prisma.project.findUnique({ where: { id } });
+      if (!project) {
+        return res.status(404).json({ success: false, message: 'Project not found' });
+      }
+      // Only owner can update
+      if (project.createdById !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
 
+      const updated = await prisma.project.update({
+        where: { id },
+        data: {
+          name: name ?? project.name,
+          description: description ?? project.description,
+        },
+      });
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      console.error('Update project error:', error);
+      res.status(500).json({ success: false, message: 'Failed to update project' });
+    }
+  }
+);
+
+// Delete project
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const userId = getAuthenticatedUserId(req);
   try {
     const project = await prisma.project.findUnique({ where: { id } });
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
-
-    const updated = await prisma.project.update({
-      where: { id },
-      data: {
-        name: name || project.name,
-        description: description !== undefined ? description : project.description,
-        updatedAt: new Date(),
-      },
-    });
-    res.json({ success: true, data: updated });
-  } catch (error) {
-    console.error('Update project error:', error);
-    res.status(500).json({ success: false, message: 'Failed to update project' });
-  }
-});
-
-// Delete project
-router.delete('/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
+    if (project.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
     await prisma.project.delete({ where: { id } });
     res.json({ success: true, message: 'Project deleted' });
   } catch (error) {

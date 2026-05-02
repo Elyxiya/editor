@@ -1,13 +1,22 @@
+/**
+ * Pages routes — all operations require authentication and ownership
+ */
+
 import { Router } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { prisma } from '../prisma.js';
+import { requireAuth, getAuthenticatedUserId } from '../middleware/auth.js';
 
 const router = Router();
 
-// Get all pages
+router.use(requireAuth);
+
+// Get all pages (owned by current user)
 router.get('/', async (req, res) => {
+  const userId = getAuthenticatedUserId(req);
   try {
     const pages = await prisma.page.findMany({
+      where: { createdById: userId! },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -39,18 +48,26 @@ router.get('/:id',
     }
 
     const id = req.params['id']!;
+    const userId = getAuthenticatedUserId(req);
     try {
       const page = await prisma.page.findUnique({ where: { id } });
       if (!page) {
         return res.status(404).json({ success: false, message: 'Page not found' });
       }
-      res.json({
-        success: true,
-        data: {
-          ...page,
-          schema: JSON.parse(page.schema),
-        },
-      });
+      if (page.createdById !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
+      try {
+        res.json({
+          success: true,
+          data: {
+            ...page,
+            schema: JSON.parse(page.schema),
+          },
+        });
+      } catch {
+        res.status(500).json({ success: false, message: 'Invalid page schema in database' });
+      }
     } catch (error) {
       console.error('Get page error:', error);
       res.status(500).json({ success: false, message: 'Failed to fetch page' });
@@ -70,6 +87,11 @@ router.post('/',
     }
 
     const { name, title, description, schema } = req.body;
+    const userId = getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ success: false, message: '认证失败' });
+      return;
+    }
 
     try {
       const page = await prisma.page.create({
@@ -79,17 +101,16 @@ router.post('/',
           description,
           schema: JSON.stringify(schema),
           version: 1,
-          createdById: 'default-user',
+          createdById: userId,
         },
       });
 
-      // Record initial version
       await prisma.pageVersion.create({
         data: {
           pageId: page.id,
           version: 1,
           schema: JSON.stringify(schema),
-          createdById: 'default-user',
+          createdById: userId,
           comment: '初始版本',
         },
       });
@@ -120,11 +141,15 @@ router.put('/:id',
 
     const id = req.params['id']!;
     const { schema, comment } = req.body;
+    const userId = getAuthenticatedUserId(req);
 
     try {
       const existing = await prisma.page.findUnique({ where: { id } });
       if (!existing) {
         return res.status(404).json({ success: false, message: 'Page not found' });
+      }
+      if (existing.createdById !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
       }
 
       const newVersion = existing.version + 1;
@@ -134,7 +159,6 @@ router.put('/:id',
         data: {
           schema: JSON.stringify(schema),
           version: newVersion,
-          updatedAt: new Date(),
         },
       });
 
@@ -143,7 +167,7 @@ router.put('/:id',
           pageId: id,
           version: newVersion,
           schema: JSON.stringify(schema),
-          createdById: 'default-user',
+          createdById: userId!,
           comment: comment || `版本 ${newVersion}`,
         },
       });
@@ -172,9 +196,19 @@ router.delete('/:id',
     }
 
     const id = req.params['id']!;
+    const userId = getAuthenticatedUserId(req);
     try {
-      await prisma.pageVersion.deleteMany({ where: { pageId: id } });
-      await prisma.page.delete({ where: { id } });
+      const page = await prisma.page.findUnique({ where: { id } });
+      if (!page) {
+        return res.status(404).json({ success: false, message: 'Page not found' });
+      }
+      if (page.createdById !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
+      await prisma.$transaction([
+        prisma.pageVersion.deleteMany({ where: { pageId: id } }),
+        prisma.page.delete({ where: { id } }),
+      ]);
       res.json({ success: true, message: 'Page deleted' });
     } catch (error) {
       console.error('Delete page error:', error);
@@ -186,10 +220,14 @@ router.delete('/:id',
 // Get page version history
 router.get('/:id/versions', async (req, res) => {
   const id = req.params['id']!;
+  const userId = getAuthenticatedUserId(req);
   try {
     const page = await prisma.page.findUnique({ where: { id } });
     if (!page) {
       return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    if (page.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
     const versions = await prisma.pageVersion.findMany({
@@ -215,8 +253,22 @@ router.get('/:id/versions/:version', async (req, res) => {
   const id = req.params['id']!;
   const versionStr = req.params['version']!;
   const versionNum = parseInt(versionStr, 10);
+  const userId = getAuthenticatedUserId(req);
+
+  if (isNaN(versionNum) || versionNum < 1) {
+    res.status(400).json({ success: false, message: 'Invalid version number' });
+    return;
+  }
 
   try {
+    const page = await prisma.page.findUnique({ where: { id } });
+    if (!page) {
+      return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    if (page.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     const version = await prisma.pageVersion.findUnique({
       where: { pageId_version: { pageId: id, version: versionNum } },
     });
@@ -237,11 +289,20 @@ router.post('/:id/rollback/:version', async (req, res) => {
   const id = req.params['id']!;
   const versionStr = req.params['version']!;
   const versionNum = parseInt(versionStr, 10);
+  const userId = getAuthenticatedUserId(req);
+
+  if (isNaN(versionNum) || versionNum < 1) {
+    res.status(400).json({ success: false, message: 'Invalid version number' });
+    return;
+  }
 
   try {
     const page = await prisma.page.findUnique({ where: { id } });
     if (!page) {
       return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    if (page.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
     const targetVersion = await prisma.pageVersion.findUnique({
@@ -259,7 +320,6 @@ router.post('/:id/rollback/:version', async (req, res) => {
       data: {
         schema: targetVersion.schema,
         version: newVersion,
-        updatedAt: new Date(),
       },
     });
 
@@ -268,7 +328,7 @@ router.post('/:id/rollback/:version', async (req, res) => {
         pageId: id,
         version: newVersion,
         schema: targetVersion.schema,
-        createdById: 'default-user',
+        createdById: userId!,
         comment: `回滚到 v${versionNum}`,
       },
     });
@@ -290,20 +350,28 @@ router.post('/:id/rollback/:version', async (req, res) => {
 // Publish page
 router.post('/:id/publish', async (req, res) => {
   const id = req.params['id']!;
+  const userId = getAuthenticatedUserId(req);
   try {
-    const page = await prisma.page.update({
+    const page = await prisma.page.findUnique({ where: { id } });
+    if (!page) {
+      return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    if (page.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const updated = await prisma.page.update({
       where: { id },
       data: {
         isPublished: true,
         publishedAt: new Date(),
-        updatedAt: new Date(),
       },
     });
     res.json({
       success: true,
       data: {
-        ...page,
-        schema: JSON.parse(page.schema),
+        ...updated,
+        schema: JSON.parse(updated.schema),
       },
     });
   } catch (error) {
@@ -315,20 +383,28 @@ router.post('/:id/publish', async (req, res) => {
 // Unpublish page
 router.post('/:id/unpublish', async (req, res) => {
   const id = req.params['id']!;
+  const userId = getAuthenticatedUserId(req);
   try {
-    const page = await prisma.page.update({
+    const page = await prisma.page.findUnique({ where: { id } });
+    if (!page) {
+      return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    if (page.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const updated = await prisma.page.update({
       where: { id },
       data: {
         isPublished: false,
         publishedAt: null,
-        updatedAt: new Date(),
       },
     });
     res.json({
       success: true,
       data: {
-        ...page,
-        schema: JSON.parse(page.schema),
+        ...updated,
+        schema: JSON.parse(updated.schema),
       },
     });
   } catch (error) {
@@ -341,11 +417,15 @@ router.post('/:id/unpublish', async (req, res) => {
 router.get('/:id/export', async (req, res) => {
   const id = req.params['id']!;
   const format = (req.query['format'] as string) || 'zip';
+  const userId = getAuthenticatedUserId(req);
 
   try {
     const page = await prisma.page.findUnique({ where: { id } });
     if (!page) {
       return res.status(404).json({ success: false, message: 'Page not found' });
+    }
+    if (page.createdById !== userId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
     res.json({

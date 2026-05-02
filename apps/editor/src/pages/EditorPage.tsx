@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, CollisionDetection, closestCenter, pointerWithin } from '@dnd-kit/core';
 import { EditorToolbar } from '@/components/EditorToolbar';
@@ -33,20 +33,20 @@ const smartCollisionDetection: CollisionDetection = (args) => {
 
 export const EditorPage: React.FC = () => {
   const { pageId } = useParams<{ pageId?: string }>();
-  const store = useEditorStore() as any;
-  const { schema, setSchema, addComponent, moveComponent, setActiveId, overContainerId, setOverContainerId, device } = store;
-  const [activeDragData, setActiveDragData] = React.useState<any>(null);
+  const setSchema = useEditorStore((s) => s.setSchema);
+  const addComponent = useEditorStore((s) => s.addComponent);
+  const moveComponent = useEditorStore((s) => s.moveComponent);
+  const setActiveId = useEditorStore((s) => s.setActiveId);
+  const overContainerId = useEditorStore((s) => s.overContainerId);
+  const setOverContainerId = useEditorStore((s) => s.setOverContainerId);
+  const device = useEditorStore((s) => s.device);
+  const [activeDragData, setActiveDragData] = useState<{ type: string; componentType?: string; componentId?: string } | null>(null);
+  const [dragPreviewComponent, setDragPreviewComponent] = useState<{ label: string } | null>(null);
 
   useKeyboardShortcuts();
   useCanvasZoom();
 
-  useEffect(() => {
-    if (pageId) {
-      loadPage(pageId);
-    }
-  }, [pageId]);
-
-  const loadPage = async (id: string) => {
+  const loadPage = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/pages/${id}`);
       if (res.ok) {
@@ -56,16 +56,36 @@ export const EditorPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load page:', error);
     }
-  };
+  }, [setSchema]);
 
-  const handleDragStart = (event: DragStartEvent) => {
+  useEffect(() => {
+    if (pageId) {
+      loadPage(pageId);
+    }
+  }, [pageId, loadPage]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
-    setActiveDragData(event.active.data.current);
-  };
+    const data = event.active.data.current as { type: string; componentType?: string; componentId?: string } | undefined;
+    setActiveDragData(data ?? null);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+    // Capture current component info for preview
+    if (data?.type === 'move') {
+      const currentSchema = useEditorStore.getState().schema;
+      const comp = currentSchema.page.components.find((c) => c.id === data.componentId);
+      setDragPreviewComponent(comp ? { label: comp.label ?? '' } : null);
+    } else if (data?.type === 'component') {
+      const meta = getComponentMeta(data.componentType ?? '');
+      setDragPreviewComponent(meta ? { label: meta.label ?? '' } : null);
+    } else {
+      setDragPreviewComponent(null);
+    }
+  }, [setActiveId]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveId(null);
     setActiveDragData(null);
+    setDragPreviewComponent(null);
     setOverContainerId(null);
 
     const { active, over } = event;
@@ -106,49 +126,26 @@ export const EditorPage: React.FC = () => {
         moveComponent(activeData.componentId, targetId, position);
       }
     }
-  };
+  }, [addComponent, moveComponent, setActiveId, setOverContainerId, overContainerId]);
 
   const renderDragPreview = () => {
-    if (!activeDragData) return null;
+    if (!dragPreviewComponent) return null;
 
-    if (activeDragData.type === 'component') {
-      const meta = getComponentMeta(activeDragData.componentType);
-      return (
-        <div style={{
-          padding: '8px 16px',
-          background: '#fff',
-          border: '1px dashed #1677ff',
-          borderRadius: 4,
-          color: '#1677ff',
-          fontSize: 14,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-        }}>
-          {meta?.label || activeDragData.componentType}
-        </div>
-      );
-    }
-
-    if (activeDragData.type === 'move') {
-      const component = schema.page.components.find((c: any) => c.id === activeDragData.componentId);
-      if (component) {
-        return (
-          <div style={{
-            padding: '8px 16px',
-            background: '#e6f4ff',
-            border: '1px solid #1677ff',
-            borderRadius: 4,
-            color: '#1677ff',
-            fontSize: 14,
-            opacity: 0.8,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-          }}>
-            {component.label}
-          </div>
-        );
-      }
-    }
-
-    return null;
+    const isMove = activeDragData?.type === 'move';
+    return (
+      <div style={{
+        padding: '8px 16px',
+        background: isMove ? '#e6f4ff' : '#fff',
+        border: '1px solid #1677ff',
+        borderRadius: 4,
+        color: '#1677ff',
+        fontSize: 14,
+        opacity: 0.8,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+      }}>
+        {dragPreviewComponent.label}
+      </div>
+    );
   };
 
   const deviceFrameClass =

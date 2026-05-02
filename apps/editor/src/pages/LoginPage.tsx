@@ -19,8 +19,9 @@ export const LoginPage: React.FC = () => {
       authService.setAuth(token, user);
       message.success('登录成功');
       navigate('/projects');
-    } catch (error: any) {
-      message.error(error.message || '登录失败');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '登录失败';
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -33,8 +34,9 @@ export const LoginPage: React.FC = () => {
       authService.setAuth(token, user);
       message.success('注册成功');
       navigate('/projects');
-    } catch (error: any) {
-      message.error(error.message || '注册失败');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '注册失败';
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }

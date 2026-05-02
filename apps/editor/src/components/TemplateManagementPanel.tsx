@@ -193,8 +193,8 @@ const TemplateManagementPanel: React.FC<TemplateManagementPanelProps> = ({
   };
 
   const browseContent = (
-    <div>
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
         <Input
           placeholder="搜索模板..."
           prefix={<SearchOutlined />}
@@ -217,83 +217,80 @@ const TemplateManagementPanel: React.FC<TemplateManagementPanelProps> = ({
       </div>
 
       {loading ? (
-        <div style={{ padding: 24, textAlign: 'center' }}>加载中...</div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>加载中...</div>
       ) : templates.length === 0 ? (
-        <Empty
-          style={{ padding: 24 }}
-          description={search ? '未找到匹配的模板' : '暂无模板'}
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Empty
+            description={search ? '未找到匹配的模板' : '暂无模板'}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        </div>
       ) : (
-        <div style={{ padding: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, maxHeight: 400, overflowY: 'auto' }}>
-          {templates.map((tpl) => (
-            <Card
-              key={tpl.id}
-              size="small"
-              hoverable
-              onClick={() => {
-                setSelectedTemplateId(tpl.id);
-                handleLoadTemplate(tpl.id);
-              }}
-              style={{
-                cursor: 'pointer',
-                border: selectedTemplateId === tpl.id ? '#1677ff solid 2px' : undefined,
-              }}
-              title={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Tag color={categoryColors[tpl.category] || 'default'} style={{ marginRight: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+            {templates.map((tpl) => (
+              <Card
+                key={tpl.id}
+                size="small"
+                hoverable
+                onClick={() => {
+                  setSelectedTemplateId(tpl.id);
+                  handleLoadTemplate(tpl.id);
+                }}
+                style={{
+                  cursor: 'pointer',
+                  border: selectedTemplateId === tpl.id ? '#1677ff solid 2px' : undefined,
+                }}
+              >
+                <div style={{ marginBottom: 4 }}>
+                  <Text strong ellipsis style={{ fontSize: 13 }}>{tpl.title}</Text>
+                </div>
+                {tpl.description && (
+                  <Paragraph
+                    type="secondary"
+                    ellipsis={{ rows: 2 }}
+                    style={{ fontSize: 11, marginBottom: 8 }}
+                  >
+                    {tpl.description}
+                  </Paragraph>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                  <Tag color={categoryColors[tpl.category] || 'default'} style={{ fontSize: 10, marginRight: 0 }}>
                     {categoryLabels[tpl.category] || tpl.category}
                   </Tag>
+                  <Tag style={{ fontSize: 10, marginRight: 0 }}>
+                    {tpl.componentCount} 个组件
+                  </Tag>
+                  {tpl.isPublic && <Tag color="gold" style={{ fontSize: 10, marginRight: 0 }}>公开</Tag>}
                 </div>
-              }
-              extra={
-                <Popconfirm
-                  title="删除此模板？"
-                  onConfirm={(e) => {
-                    e?.stopPropagation();
-                    handleDeleteTemplate(tpl.id);
-                  }}
-                  onCancel={(e) => e?.stopPropagation()}
-                  okText="删除"
-                  cancelText="取消"
+                <div
+                  style={{ position: 'absolute', top: 8, right: 8 }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <Button
-                    type="text"
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </Popconfirm>
-              }
-            >
-              <div style={{ marginBottom: 4 }}>
-                <Text strong ellipsis style={{ fontSize: 13 }}>{tpl.title}</Text>
-              </div>
-              {tpl.description && (
-                <Paragraph
-                  type="secondary"
-                  ellipsis={{ rows: 2 }}
-                  style={{ fontSize: 11, marginBottom: 4 }}
-                >
-                  {tpl.description}
-                </Paragraph>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Tag style={{ fontSize: 10, marginRight: 0 }}>
-                  {tpl.componentCount} 个组件
-                </Tag>
-                {tpl.isPublic && <Tag color="gold" style={{ fontSize: 10, marginRight: 0 }}>公开</Tag>}
-              </div>
-            </Card>
-          ))}
+                  <Popconfirm
+                    title="删除此模板？"
+                    onConfirm={() => handleDeleteTemplate(tpl.id)}
+                    okText="删除"
+                    cancelText="取消"
+                  >
+                    <Button
+                      type="text"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                    />
+                  </Popconfirm>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 
   const saveContent = (
-    <div style={{ padding: 16 }}>
+    <div style={{ height: '100%', overflowY: 'auto', padding: 16, paddingBottom: 48 }}>
       <Form
         form={form}
         layout="vertical"
@@ -394,13 +391,13 @@ const TemplateManagementPanel: React.FC<TemplateManagementPanelProps> = ({
       onCancel={onClose}
       footer={null}
       width={640}
-      bodyStyle={{ padding: 0, height: 480 }}
+      styles={{ body: { padding: 0, height: 560, display: 'flex', flexDirection: 'column' } }}
     >
       <Tabs
         activeKey={activeTab}
         onChange={(k) => setActiveTab(k)}
         items={tabItems}
-        style={{ height: '100%' }}
+        style={{ flex: 1, minHeight: 0 }}
         tabBarStyle={{ padding: '0 16px', marginBottom: 0 }}
       />
     </Modal>

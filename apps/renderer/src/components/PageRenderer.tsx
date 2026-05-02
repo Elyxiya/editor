@@ -135,7 +135,14 @@ function useDataSource(
 // 动态属性解析
 // ============================================================
 
-function resolvePropValue(value: unknown, context: RenderContextValue): unknown {
+interface ActionContextValue {
+  dataSources: Map<string, { data: unknown; loading: boolean; error: Error | null }>;
+  variables: Record<string, unknown>;
+  setVariable: (name: string, value: unknown) => void;
+  eventEmitter: EventEmitter;
+}
+
+function resolvePropValue(value: unknown, context: ActionContextValue): unknown {
   if (typeof value !== 'string') return value;
 
   // 检查是否是变量引用 {{variableName}}
@@ -171,7 +178,7 @@ function resolvePropValue(value: unknown, context: RenderContextValue): unknown 
   return value;
 }
 
-function resolveProps(props: ComponentProps, context: RenderContextValue): ComponentProps {
+function resolveProps(props: ComponentProps, context: ActionContextValue): ComponentProps {
   const resolved: ComponentProps = {};
 
   for (const [key, value] of Object.entries(props)) {
@@ -185,8 +192,13 @@ function resolveProps(props: ComponentProps, context: RenderContextValue): Compo
 // 动作执行器
 // ============================================================
 
-function createActionExecutor(context: RenderContextValue) {
-  return async (actionType: string, config: Record<string, unknown>) => {
+function createActionExecutor(context: {
+  dataSources: Map<string, { data: unknown; loading: boolean; error: Error | null }>;
+  variables: Record<string, unknown>;
+  setVariable: (name: string, value: unknown) => void;
+  eventEmitter: EventEmitter;
+}) {
+  const executeAction = async (actionType: string, config: Record<string, unknown>) => {
     switch (actionType) {
       case 'showMessage': {
         const content = config['content'] as string | undefined;
@@ -241,6 +253,8 @@ function createActionExecutor(context: RenderContextValue) {
         console.warn(`Unknown action type: ${actionType}`);
     }
   };
+
+  return executeAction;
 }
 
 // ============================================================
@@ -329,7 +343,9 @@ const RenderComponent: React.FC<RenderComponentProps> = ({ component }) => {
 
 const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) => {
   const context = useRenderContext();
-  const { children, ...props } = component;
+  const componentProps = component.props ?? ({} as ComponentProps);
+  const children = component.children ?? [];
+  const { ...props } = componentProps;
 
   // 解析容器属性
   const resolvedProps = useMemo(
@@ -678,7 +694,6 @@ export const PageRenderer: React.FC<PageRendererProps> = ({
         dataSources: dataSourceStates,
         variables,
         setVariable: (name: string, value: unknown) => setVariables(prev => ({ ...prev, [name]: value })),
-        executeAction: () => {},
         eventEmitter,
       }),
     [dataSourceStates, variables, eventEmitter]
@@ -749,4 +764,4 @@ export const PageRenderer: React.FC<PageRendererProps> = ({
 // ============================================================
 
 export { useRenderContext };
-export type { PageRendererProps, RenderContextValue };
+export type { PageRendererProps, RenderContextValue, ActionContextValue };

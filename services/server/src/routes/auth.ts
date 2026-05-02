@@ -1,21 +1,20 @@
+/**
+ * Authentication routes — login, register, /me
+ */
+
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../prisma.js';
+import { SECRET } from '../middleware/auth.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.warn('WARNING: JWT_SECRET environment variable is not set. Using insecure default for development only.');
-}
-
-const SECRET = JWT_SECRET || 'lowcode-dev-secret-do-not-use-in-production';
 
 router.post('/register',
   body('username').isLength({ min: 3 }).withMessage('用户名至少3个字符'),
   body('email').isEmail().withMessage('请输入有效的邮箱地址'),
-  body('password').isLength({ min: 6 }).withMessage('密码至少6个字符'),
+  body('password').isLength({ min: 8 }).withMessage('密码至少8个字符'),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -38,7 +37,7 @@ router.post('/register',
         data: { username, email, password: hashedPassword, role: 'developer' },
       });
 
-      const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '24h' });
       res.status(201).json({
         success: true,
         data: {
@@ -78,7 +77,7 @@ router.post('/login',
         return res.status(401).json({ success: false, message: '用户名或密码错误' });
       }
 
-      const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '24h' });
       res.json({
         success: true,
         data: {

@@ -87,8 +87,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     setSchema: (schema) =>
       set((state) => {
-        state.schema = schema;
+        state.schema = JSON.parse(JSON.stringify(schema));
         state.isDirty = true;
+        state.history = {
+          past: [],
+          present: JSON.parse(JSON.stringify(schema)),
+          future: [],
+        };
+        state.selectedId = null;
+        state.selectedIds = [];
       }),
 
     updatePageTitle: (title) =>
@@ -159,7 +166,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     saveSnapshot: () =>
       set((state) => {
         const { past, present } = state.history;
-        const newPast = [...past, present].slice(-MAX_HISTORY);
+        const newPast = [...past, JSON.parse(JSON.stringify(present))].slice(-MAX_HISTORY);
         state.history = {
           past: newPast,
           present: JSON.parse(JSON.stringify(state.schema)),
@@ -221,6 +228,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           position
         );
         state.selectedId = newComponent.id;
+        state.selectedIds = [newComponent.id];
         state.isDirty = true;
       });
     },
@@ -236,6 +244,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         if (state.selectedId === id) {
           state.selectedId = null;
         }
+        state.selectedIds = state.selectedIds.filter(sid => sid !== id);
         state.isDirty = true;
       });
     },
@@ -327,6 +336,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         if (state.selectedId === id) {
           state.selectedId = null;
         }
+        state.selectedIds = state.selectedIds.filter(sid => sid !== id);
         state.isDirty = true;
       });
     },
@@ -373,7 +383,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         selectedIds.forEach((id, i) => {
           const comp = findComponentById(state.schema.page.components, id);
           if (!comp) return;
-          const p = comp.props?.style || {};
+          // Deep-clone the style object to avoid shared reference mutations
+          const p: Record<string, unknown> = { ...((comp.props?.style || {}) as Record<string, unknown>) };
           switch (direction) {
             case 'left':
               Object.assign(p, { marginLeft: targetValue });
@@ -395,7 +406,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
               break;
           }
           if (!comp.props) comp.props = {};
-          comp.props.style = { ...p };
+          comp.props.style = { ...p } as Record<string, string | number>;
         });
         state.isDirty = true;
       });
@@ -516,11 +527,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     savePage: async () => {
       const { schema } = get();
       const pageId = schema.page.id || 'new';
+      const token = localStorage.getItem('token');
 
       try {
         const response = await fetch(`/api/pages/${pageId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ schema }),
         });
 
@@ -538,15 +553,27 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     },
 
     loadPage: async (id) => {
+      const token = localStorage.getItem('token');
       try {
-        const response = await fetch(`/api/pages/${id}`);
+        const response = await fetch(`/api/pages/${id}`, {
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+        });
         if (!response.ok) {
           throw new Error('Failed to load page');
         }
         const data = await response.json();
         set((state) => {
-          state.schema = data.schema;
-          state.schema.page.id = id;
+          state.schema = { ...data.schema, page: { ...data.schema.page, id } };
+          state.history = {
+            past: [],
+            present: JSON.parse(JSON.stringify(data.schema)),
+            future: [],
+          };
+          state.isDirty = false;
+          state.selectedId = null;
+          state.selectedIds = [];
         });
       } catch (error) {
         console.error('Load failed:', error);

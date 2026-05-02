@@ -1,9 +1,26 @@
-import React from 'react';
-import { Card, Typography, Form, Input, Switch, Select, Divider, Space, Button } from 'antd';
+import React, { useState } from 'react';
+import { Card, Typography, Form, Input, Switch, Select, Divider, Space, Button, message } from 'antd';
 
 const { Title, Text } = Typography;
 
 export const SettingsPage: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSaveSettings = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      message.success('设置已保存');
+    }, 500);
+  };
+
+  const handleImportComponent = () => {
+    message.info('组件导入功能开发中');
+  };
+
+  const handleExportComponent = () => {
+    message.info('组件导出功能开发中');
+  };
   return (
     <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
       <Title level={3}>设置</Title>
@@ -54,14 +71,14 @@ export const SettingsPage: React.FC = () => {
 
       <Card title="组件库设置" style={{ marginBottom: 16 }}>
         <Space>
-          <Button>导入组件</Button>
-          <Button>导出组件</Button>
+          <Button onClick={handleImportComponent}>导入组件</Button>
+          <Button onClick={handleExportComponent}>导出组件</Button>
         </Space>
       </Card>
 
       <Space>
-        <Button type="primary">保存设置</Button>
-        <Button>取消</Button>
+        <Button type="primary" onClick={handleSaveSettings} loading={loading}>保存设置</Button>
+        <Button onClick={() => message.info('设置未保存')}>取消</Button>
       </Space>
     </div>
   );

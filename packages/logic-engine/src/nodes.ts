@@ -322,7 +322,11 @@ export const logicNodes: Record<string, NodeDefinition> = {
     inputs: [
       createInput('input', 'input', '输入值', 'any'),
     ],
-    outputs: [],
+    outputs: [
+      createOutput('case1', 'case1', '条件1'),
+      createOutput('case2', 'case2', '条件2'),
+      createOutput('default', 'default', '默认'),
+    ],
     isDraggable: true,
   },
 
@@ -374,7 +378,10 @@ export const logicNodes: Record<string, NodeDefinition> = {
     inputs: [
       createInput('trigger', 'trigger', '触发'),
     ],
-    outputs: [],
+    outputs: [
+      createOutput('branch1', 'branch1', '分支1'),
+      createOutput('branch2', 'branch2', '分支2'),
+    ],
     isDraggable: true,
   },
 
@@ -387,7 +394,9 @@ export const logicNodes: Record<string, NodeDefinition> = {
     inputs: [
       createInput('trigger', 'trigger', '触发'),
     ],
-    outputs: [],
+    outputs: [
+      createOutput('done', 'done', '完成'),
+    ],
     isDraggable: true,
   },
 };

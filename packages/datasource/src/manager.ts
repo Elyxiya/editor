@@ -471,7 +471,16 @@ export class DataSourceManager {
   private updateState(name: string, updates: Partial<DataSourceState>): void {
     const current = this.states.get(name);
     if (current) {
-      Object.assign(current, updates);
+      // Replace the state reference entirely so external subscribers get notified via Map mutation
+      const updated: DataSourceState = {
+        ...current,
+        ...updates,
+        data: updates.data !== undefined ? updates.data : current.data,
+        loading: updates.loading !== undefined ? updates.loading : current.loading,
+        error: updates.error !== undefined ? updates.error : current.error,
+        params: updates.params !== undefined ? updates.params : current.params,
+      };
+      this.states.set(name, updated);
       this.notify();
     }
   }

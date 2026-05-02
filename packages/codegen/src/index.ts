@@ -209,11 +209,16 @@ function propsToJSX(props: Record<string, unknown>, indent: string = '  '): stri
     }
     
     if (typeof value === 'string') {
-      // 处理包含特殊字符的字符串
-      if (value.includes('"') || value.includes("'") || value.includes('\n')) {
-        return `${propKey}={"${value.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"}`;
+      // Escape backslashes first, then quotes and newlines
+      const escaped = value
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
+      if (escaped !== value || escaped.includes('\\')) {
+        return `${propKey}={"${escaped}"}`;
       }
-      return `${propKey}="${value}"`;
+      return `${propKey}="${escaped}"`;
     }
     
     if (typeof value === 'number') {
@@ -225,13 +230,13 @@ function propsToJSX(props: Record<string, unknown>, indent: string = '  '): stri
     }
     
     return `${propKey}={${String(value)}}`;
-  }).filter(Boolean);
+  }).filter(line => line !== '');
   
   if (propLines.length <= 3) {
     return propLines.length > 0 ? ' ' + propLines.join(' ') : '';
   }
   
-  return '\n' + propLines.map(line => indent + line).join('\n') + '\n' + indent.slice(0, -2);
+    return '\n' + propLines.map(line => indent + line).join('\n') + '\n' + indent;
 }
 
 // ============================================================
@@ -360,7 +365,6 @@ export const ${funcName} = async (params?: Record<string, unknown>) => {
       method: '${ds.config.method || 'GET'}',
       headers: {
         'Content-Type': 'application/json',
-        ...(${ds.config.authType ? `{ 'Authorization': 'Bearer ${ds.config.authType}' }` : '{}'}),
       },
       ${ds.config.body ? `body: JSON.stringify(${JSON.stringify(ds.config.body)})` : ''}
     });
@@ -489,8 +493,8 @@ function generateEventBindingCode(_componentId: string, bindings: EventBinding[]
     const asyncPrefix = isAsync ? 'async ' : '';
 
     handlers.push(`  const handle${capitalizeFirst(binding.eventType)} = ${asyncPrefix}() => {
-    ${conditionCheck}
-    ${actionHandlers.join('\n    ')}
+    ${conditionCheck || '// no condition'}
+    ${actionHandlers.length > 0 ? actionHandlers.join('\n    ') : '// no actions'}
   };`);
   });
 

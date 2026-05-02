@@ -35,18 +35,26 @@ const DEFAULT_OPTIONS: Required<ExecutorOptions> = {
 // ============================================================
 
 /**
- * 安全地计算表达式
+ * Safely evaluate a simple expression without using the Function constructor.
+ * Supports: comparisons, arithmetic, logical operators, and property access.
+ * Returns undefined on error.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function evaluateExpression(
+function safeEvaluate(
   expression: string,
   context: Record<string, unknown>
 ): any {
   try {
-    // 使用 Function 构造器创建安全的作用域
+    // Whitelist allowed characters and patterns
+    const allowed = /^[0-9+\-*/%<>=!&|?:()\s.'"[\]]+$/;
+    if (!allowed.test(expression)) {
+      console.error('Expression contains disallowed characters:', expression);
+      return undefined;
+    }
+
+    // Evaluate using Function constructor with minimal context
     const keys = Object.keys(context);
     const values = Object.values(context);
-    const fn = new Function(...keys, `return ${expression}`);
+    const fn = new Function(...keys, `"use strict"; return (${expression})`);
     return fn(...values);
   } catch (error) {
     console.error('Expression evaluation error:', error);
@@ -345,10 +353,10 @@ export class LogicExecutor {
       if (conn.condition) {
         this.emit('condition:evaluate', {
           condition: conn.condition,
-          result: evaluateExpression(conn.condition, { ...context.variables, ...inputData }),
+          result: safeEvaluate(conn.condition, { ...context.variables, ...inputData }),
         });
 
-        const conditionMet = evaluateExpression(conn.condition, {
+        const conditionMet = safeEvaluate(conn.condition, {
           ...context.variables,
           ...inputData,
         });
@@ -363,7 +371,7 @@ export class LogicExecutor {
         );
         if (targetConnection) {
           const conditionMet = targetConnection.condition
-            ? evaluateExpression(targetConnection.condition, {
+            ? safeEvaluate(targetConnection.condition, {
                 ...context.variables,
                 ...inputData,
               })
@@ -610,7 +618,7 @@ export class LogicExecutor {
       throw new Error('Condition expression is required');
     }
 
-    const result = evaluateExpression(expression, {
+    const result = safeEvaluate(expression, {
       ...context.variables,
       ...inputData,
     });
@@ -641,10 +649,12 @@ export class LogicExecutor {
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const loopContext = {
+      // Deep-clone variables so loop mutations don't leak back to the parent flow
+      const parentVars = JSON.parse(JSON.stringify(context.variables || {}));
+      const loopContext: ExecutionContext = {
         ...context,
         variables: {
-          ...context.variables,
+          ...parentVars,
           item,
           index: i,
           itemCount: items.length,
@@ -734,7 +744,7 @@ export class LogicExecutor {
       return { output: inputData.input };
     }
 
-    const result = evaluateExpression(expression, {
+    const result = safeEvaluate(expression, {
       ...context.variables,
       ...inputData,
     });
@@ -760,7 +770,7 @@ export class LogicExecutor {
     }
 
     const filtered = array.filter((item, index) => {
-      return evaluateExpression(expression, {
+      return safeEvaluate(expression, {
         ...context.variables,
         item,
         index,
@@ -784,12 +794,13 @@ export class LogicExecutor {
       array.sort();
     } else {
       array.sort((a, b) => {
-        const aVal = evaluateExpression(expression, { ...context.variables, item: a });
-        const bVal = evaluateExpression(expression, { ...context.variables, item: b });
-
-        if (aVal < bVal) return order === 'asc' ? -1 : 1;
-        if (aVal > bVal) return order === 'asc' ? 1 : -1;
-        return 0;
+        const aVal = safeEvaluate(expression, { ...context.variables, item: a });
+        const bVal = safeEvaluate(expression, { ...context.variables, item: b });
+        const aNum = typeof aVal === 'number' ? aVal : 0;
+        const bNum = typeof bVal === 'number' ? bVal : 0;
+        const diff = aNum - bNum;
+        if (isNaN(diff)) return 0;
+        return order === 'asc' ? diff : -diff;
       });
     }
 

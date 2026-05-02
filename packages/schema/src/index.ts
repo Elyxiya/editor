@@ -50,7 +50,19 @@ export class SchemaValidator {
 }
 
 export function generateComponentId(): string {
-  return `comp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  // Use crypto-safe random bytes if available, fallback to crypto.randomUUID
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.randomUUID) {
+    return `comp_${globalThis.crypto.randomUUID().replace(/-/g, '')}`;
+  }
+  // Fallback for older environments
+  const array = new Uint8Array(16);
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
+    globalThis.crypto.getRandomValues(array);
+  } else {
+    for (let i = 0; i < 16; i++) array[i] = Math.floor(Math.random() * 256);
+  }
+  const hex = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `comp_${hex}`;
 }
 
 export function findComponentById(

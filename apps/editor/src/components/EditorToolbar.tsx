@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Button, Space, Tooltip, Divider, Modal, message, Select, Input, Dropdown } from 'antd';
 import {
-  SaveOutlined, UndoOutlined, RedoOutlined, EyeOutlined, ExportOutlined,
+  SaveOutlined, UndoOutlined, RedoOutlined, ExportOutlined, EyeOutlined,
   DesktopOutlined, TabletOutlined, MobileOutlined, HistoryOutlined, CloudUploadOutlined,
   ThunderboltOutlined, ApiOutlined, FileTextOutlined,
   AlignLeftOutlined, AlignCenterOutlined, AlignRightOutlined,
@@ -9,14 +9,13 @@ import {
   InsertRowRightOutlined, InsertRowBelowOutlined, StarOutlined
 } from '@ant-design/icons';
 import { useEditorStore } from '@/store/editorStore';
-import { DEVICE_WIDTHS } from '@lowcode/utils';
-import { getComponent } from '@lowcode/components';
 import { CodeExportPanel } from '@/components/CodeExportPanel';
 import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
 import { LogicFlowEditor } from '@/components/LogicFlowEditor';
 import { DataSourceManagementPanel } from '@/components/DataSourceManagementPanel';
 import { PageManagementPanel } from '@/components/PageManagementPanel';
 import { TemplateManagementPanel } from '@/components/TemplateManagementPanel';
+import { PreviewPanel } from '@/components/PreviewPanel';
 import type { LogicFlow } from '@lowcode/logic-engine';
 import type { DataSource as DataSourceType } from '@lowcode/types';
 
@@ -25,7 +24,6 @@ export const EditorToolbar: React.FC = () => {
   const canUndo = useEditorStore((state) => state.history.past.length > 0);
   const canRedo = useEditorStore((state) => state.history.future.length > 0);
   const hasMultiSelect = selectedIds && selectedIds.length > 1;
-  const [isPreview, setIsPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
@@ -33,6 +31,7 @@ export const EditorToolbar: React.FC = () => {
   const [showDataSourcePanel, setShowDataSourcePanel] = useState(false);
   const [showPagePanel, setShowPagePanel] = useState(false);
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
+  const [showPreviewPanel, setShowPreviewPanel] = useState(false);
   const [currentFlow, setCurrentFlow] = useState<LogicFlow | undefined>();
 
   // 页面管理
@@ -53,11 +52,6 @@ export const EditorToolbar: React.FC = () => {
     }
   };
 
-  const canvasWidth = DEVICE_WIDTHS[device];
-  const canvasHeight = 600;
-
-  const handlePreview = () => setIsPreview(true);
-
   const handleExport = () => {
     setShowExportPanel(true);
   };
@@ -71,228 +65,126 @@ export const EditorToolbar: React.FC = () => {
 
   const handleLogicFlowSave = useCallback((flow: LogicFlow) => {
     setCurrentFlow(flow);
+    const currentSchema = useEditorStore.getState().schema;
     const newSchema = {
-      ...schema,
+      ...currentSchema,
       page: {
-        ...schema.page,
+        ...currentSchema.page,
         props: {
-          ...schema.page.props,
+          ...currentSchema.page.props,
           logicFlow: flow,
         },
       },
     };
     setSchema(newSchema);
     message.success('逻辑流程已保存');
-  }, [schema, setSchema]);
+  }, [setSchema]);
 
   const handleDataSourceSave = useCallback((dataSources: Record<string, DataSourceType>) => {
+    const currentSchema = useEditorStore.getState().schema;
     const newSchema = {
-      ...schema,
+      ...currentSchema,
       dataSources,
     };
     setSchema(newSchema);
     message.success('数据源配置已保存');
-  }, [schema, setSchema]);
-
-  const renderPreviewComponent = (component: any): React.ReactNode => {
-    const Comp = getComponent(component.type);
-
-    if (!Comp) {
-      return <div key={component.id}>未知组件: {component.type}</div>;
-    }
-
-    const children = component.children?.map(renderPreviewComponent);
-
-    if (component.type === 'Container') {
-      return (
-        <div
-          key={component.id}
-          style={{
-            display: 'flex',
-            padding: component.props?.padding || 16,
-            background: component.props?.backgroundColor || '#ffffff',
-            borderRadius: component.props?.borderRadius || 0,
-            minHeight: component.props?.minHeight || 'auto',
-            flexDirection: component.props?.flexDirection || 'row',
-            justifyContent: component.props?.justifyContent || 'flex-start',
-            alignItems: component.props?.alignItems || 'flex-start',
-            gap: component.props?.gap || 0,
-          }}
-        >
-          {children}
-        </div>
-      );
-    }
-
-    if (component.type === 'Space') {
-      const gapMap: Record<string, number> = { small: 8, middle: 16, large: 24 };
-      const gap = typeof component.props?.size === 'string'
-        ? gapMap[component.props.size] || 8
-        : (component.props?.size || 8);
-      return (
-        <div
-          key={component.id}
-          style={{
-            display: 'flex',
-            flexDirection: component.props?.direction === 'vertical' ? 'column' : 'row',
-            gap,
-            alignItems: component.props?.align === 'center' ? 'center' : component.props?.align === 'end' ? 'flex-end' : 'flex-start',
-          }}
-        >
-          {children}
-        </div>
-      );
-    }
-
-    if (children && children.length > 0 && component.type !== 'FormItem') {
-      return <div key={component.id}><Comp {...component.props}>{children}</Comp></div>;
-    }
-
-    // 高级组件预览处理
-    if (component.type === 'Tag') {
-      return <div key={component.id} style={{ display: 'inline-block' }}><Comp {...component.props}>{component.props?.children || '标签'}</Comp></div>;
-    }
-    if (component.type === 'Badge') {
-      return <div key={component.id} style={{ display: 'inline-flex' }}><Comp {...component.props}>{children}</Comp></div>;
-    }
-    if (component.type === 'Avatar') {
-      return <div key={component.id} style={{ display: 'inline-block' }}><Comp {...component.props} /></div>;
-    }
-    if (component.type === 'Progress') {
-      return <div key={component.id} style={{ width: '100%' }}><Comp {...component.props} /></div>;
-    }
-    if (component.type === 'Statistic') {
-      return <div key={component.id} style={{ display: 'inline-block' }}><Comp {...component.props} /></div>;
-    }
-    if (component.type === 'Skeleton') {
-      return <div key={component.id} style={{ width: '100%' }}><Comp {...component.props} /></div>;
-    }
-
-    // 图表组件预览处理
-    if (component.type === 'LineChart') {
-      const LineChartComp = getComponent('LineChart');
-      if (!LineChartComp) return null;
-      return <div key={component.id} style={{ width: '100%' }}><LineChartComp {...component.props} /></div>;
-    }
-    if (component.type === 'BarChart') {
-      const BarChartComp = getComponent('BarChart');
-      if (!BarChartComp) return null;
-      return <div key={component.id} style={{ width: '100%' }}><BarChartComp {...component.props} /></div>;
-    }
-    if (component.type === 'PieChart') {
-      const PieChartComp = getComponent('PieChart');
-      if (!PieChartComp) return null;
-      return <div key={component.id} style={{ width: '100%' }}><PieChartComp {...component.props} /></div>;
-    }
-
-    return <div key={component.id} style={{ width: '100%' }}><Comp {...component.props} /></div>;
-  };
+  }, [setSchema]);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 48, padding: '0 16px', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
-      <div style={{ flex: 1 }}>
-        <Input value={schema.page.title} onChange={(e) => setSchema({ ...schema, page: { ...schema.page, title: e.target.value } })} style={{ width: 200 }} variant="borderless" />
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 48, padding: '0 16px', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+        <div style={{ flex: 1 }}>
+          <Input value={schema.page.title} onChange={(e) => {
+            const newTitle = e.target.value;
+            setSchema({ ...useEditorStore.getState().schema, page: { ...useEditorStore.getState().schema.page, title: newTitle } });
+          }} style={{ width: 200 }} variant="borderless" />
+        </div>
+        <div style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Space>
+            <Tooltip title="保存 (Ctrl+S)">
+              <Button icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>保存</Button>
+            </Tooltip>
+            <Divider type="vertical" />
+            <Tooltip title="撤销 (Ctrl+Z)">
+              <Button icon={<UndoOutlined />} disabled={!canUndo} onClick={undo} />
+            </Tooltip>
+            <Tooltip title="重做 (Ctrl+Y)">
+              <Button icon={<RedoOutlined />} disabled={!canRedo} onClick={redo} />
+            </Tooltip>
+            <Divider type="vertical" />
+            <Select value={device} onChange={setDevice} style={{ width: 120 }}
+              options={[
+                { value: 'pc', label: <><DesktopOutlined /> PC</> },
+                { value: 'tablet', label: <><TabletOutlined /> 平板</> },
+                { value: 'mobile', label: <><MobileOutlined /> 手机</> },
+              ]}
+            />
+            <Select value={zoom} onChange={setZoom} style={{ width: 80 }}
+              options={[
+                { value: 0.25, label: '25%' }, { value: 0.5, label: '50%' }, { value: 0.75, label: '75%' },
+                { value: 1, label: '100%' }, { value: 1.25, label: '125%' }, { value: 1.5, label: '150%' }, { value: 2, label: '200%' },
+              ]}
+            />
+            <Divider type="vertical" />
+            <Tooltip title={hasMultiSelect ? '对齐与分布' : '对齐工具（需多选）'}>
+              <Dropdown
+                disabled={!hasMultiSelect}
+                menu={{
+                  items: [
+                    {
+                      key: 'align',
+                      label: '对齐',
+                      type: 'group',
+                      children: [
+                        { key: 'left', label: '左对齐', icon: <AlignLeftOutlined />, onClick: () => alignComponents('left') },
+                        { key: 'center', label: '水平居中', icon: <AlignCenterOutlined />, onClick: () => alignComponents('center') },
+                        { key: 'right', label: '右对齐', icon: <AlignRightOutlined />, onClick: () => alignComponents('right') },
+                        { key: 'top', label: '顶对齐', icon: <VerticalAlignTopOutlined />, onClick: () => alignComponents('top') },
+                        { key: 'middle', label: '垂直居中', icon: <VerticalAlignMiddleOutlined />, onClick: () => alignComponents('middle') },
+                        { key: 'bottom', label: '底对齐', icon: <VerticalAlignBottomOutlined />, onClick: () => alignComponents('bottom') },
+                      ],
+                    },
+                    {
+                      key: 'distribute',
+                      label: '分布',
+                      type: 'group',
+                      children: [
+                        { key: 'h', label: '水平等间距', icon: <InsertRowRightOutlined />, onClick: () => distributeComponents('horizontal') },
+                        { key: 'v', label: '垂直等间距', icon: <InsertRowBelowOutlined />, onClick: () => distributeComponents('vertical') },
+                      ],
+                    },
+                  ],
+                }}
+                trigger={['click']}
+              >
+                <Button icon={<AlignCenterOutlined />} disabled={!hasMultiSelect} style={{ fontSize: 12 }}>
+                  对齐 {hasMultiSelect ? `(${selectedIds.length})` : ''}
+                </Button>
+              </Dropdown>
+            </Tooltip>
+          </Space>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <Space>
+            <Tooltip title="历史记录"><Button icon={<HistoryOutlined />} onClick={() => setShowVersionPanel(true)} /></Tooltip>
+            <Tooltip title="页面管理"><Button icon={<FileTextOutlined />} onClick={() => setShowPagePanel(true)} /></Tooltip>
+            <Tooltip title="模板市场"><Button icon={<StarOutlined />} onClick={() => setShowTemplatePanel(true)} /></Tooltip>
+            <Tooltip title="数据源"><Button icon={<ApiOutlined />} onClick={() => setShowDataSourcePanel(true)} /></Tooltip>
+            <Tooltip title="逻辑流程"><Button icon={<ThunderboltOutlined />} onClick={() => setShowLogicFlowEditor(true)} /></Tooltip>
+            <Divider type="vertical" />
+            <Button icon={<EyeOutlined />} onClick={() => setShowPreviewPanel(true)}>预览</Button>
+            <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
+            <Button type="primary" icon={<CloudUploadOutlined />} onClick={handlePublish}>发布</Button>
+          </Space>
+        </div>
       </div>
-      <div style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Space>
-          <Tooltip title="保存 (Ctrl+S)">
-            <Button icon={<SaveOutlined />} onClick={handleSave} loading={isSaving}>保存</Button>
-          </Tooltip>
-          <Divider type="vertical" />
-          <Tooltip title="撤销 (Ctrl+Z)">
-            <Button icon={<UndoOutlined />} disabled={!canUndo} onClick={undo} />
-          </Tooltip>
-          <Tooltip title="重做 (Ctrl+Y)">
-            <Button icon={<RedoOutlined />} disabled={!canRedo} onClick={redo} />
-          </Tooltip>
-          <Divider type="vertical" />
-          <Select value={device} onChange={setDevice} style={{ width: 120 }}
-            options={[
-              { value: 'pc', label: <><DesktopOutlined /> PC</> },
-              { value: 'tablet', label: <><TabletOutlined /> 平板</> },
-              { value: 'mobile', label: <><MobileOutlined /> 手机</> },
-            ]}
-          />
-          <Select value={zoom} onChange={setZoom} style={{ width: 80 }}
-            options={[
-              { value: 0.25, label: '25%' }, { value: 0.5, label: '50%' }, { value: 0.75, label: '75%' },
-              { value: 1, label: '100%' }, { value: 1.25, label: '125%' }, { value: 1.5, label: '150%' }, { value: 2, label: '200%' },
-            ]}
-          />
-          <Divider type="vertical" />
-          <Tooltip title={hasMultiSelect ? '对齐与分布' : '对齐工具（需多选）'}>
-            <Dropdown
-              disabled={!hasMultiSelect}
-              menu={{
-                items: [
-                  {
-                    key: 'align',
-                    label: '对齐',
-                    type: 'group',
-                    children: [
-                      { key: 'left', label: '左对齐', icon: <AlignLeftOutlined />, onClick: () => alignComponents('left') },
-                      { key: 'center', label: '水平居中', icon: <AlignCenterOutlined />, onClick: () => alignComponents('center') },
-                      { key: 'right', label: '右对齐', icon: <AlignRightOutlined />, onClick: () => alignComponents('right') },
-                      { key: 'top', label: '顶对齐', icon: <VerticalAlignTopOutlined />, onClick: () => alignComponents('top') },
-                      { key: 'middle', label: '垂直居中', icon: <VerticalAlignMiddleOutlined />, onClick: () => alignComponents('middle') },
-                      { key: 'bottom', label: '底对齐', icon: <VerticalAlignBottomOutlined />, onClick: () => alignComponents('bottom') },
-                    ],
-                  },
-                  {
-                    key: 'distribute',
-                    label: '分布',
-                    type: 'group',
-                    children: [
-                      { key: 'h', label: '水平等间距', icon: <InsertRowRightOutlined />, onClick: () => distributeComponents('horizontal') },
-                      { key: 'v', label: '垂直等间距', icon: <InsertRowBelowOutlined />, onClick: () => distributeComponents('vertical') },
-                    ],
-                  },
-                ],
-              }}
-              trigger={['click']}
-            >
-              <Button icon={<AlignCenterOutlined />} disabled={!hasMultiSelect} style={{ fontSize: 12 }}>
-                对齐 {hasMultiSelect ? `(${selectedIds.length})` : ''}
-              </Button>
-            </Dropdown>
-          </Tooltip>
-        </Space>
-      </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-        <Space>
-          <Tooltip title="历史记录"><Button icon={<HistoryOutlined />} onClick={() => setShowVersionPanel(true)} /></Tooltip>
-          <Tooltip title="页面管理"><Button icon={<FileTextOutlined />} onClick={() => setShowPagePanel(true)} /></Tooltip>
-          <Tooltip title="模板市场"><Button icon={<StarOutlined />} onClick={() => setShowTemplatePanel(true)} /></Tooltip>
-          <Tooltip title="数据源"><Button icon={<ApiOutlined />} onClick={() => setShowDataSourcePanel(true)} /></Tooltip>
-          <Tooltip title="逻辑流程"><Button icon={<ThunderboltOutlined />} onClick={() => setShowLogicFlowEditor(true)} /></Tooltip>
-          <Divider type="vertical" />
-          <Button icon={<EyeOutlined />} onClick={handlePreview}>预览</Button>
-          <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={handlePublish}>发布</Button>
-        </Space>
-      </div>
-      {isPreview && (
-        <Modal
-          title={`预览: ${schema.page.title}`}
-          open={isPreview}
-          onCancel={() => setIsPreview(false)}
-          footer={null}
-          width={canvasWidth + 100}
-        >
-          <div
-            style={{
-              width: canvasWidth,
-              minHeight: canvasHeight,
-              background: schema.page.props?.background || '#fff',
-              margin: '0 auto',
-              border: '1px solid #f0f0f0',
-              padding: schema.page.props?.padding || 16,
-            }}
-          >
-            {schema.page.components.map(renderPreviewComponent)}
-          </div>
-        </Modal>
-      )}
+
+      {/* 渲染器预览面板 */}
+      <PreviewPanel
+        open={showPreviewPanel}
+        schema={schema}
+        onClose={() => setShowPreviewPanel(false)}
+      />
 
       {/* 代码导出面板 */}
       <CodeExportPanel
@@ -369,10 +261,11 @@ export const EditorToolbar: React.FC = () => {
             updatedAt: new Date().toISOString(),
           };
           setPages(prev => [...prev, newPage]);
+          const currentSchema = useEditorStore.getState().schema;
           setSchema({
-            ...schema,
+            ...currentSchema,
             page: {
-              ...schema.page,
+              ...currentSchema.page,
               id: newPage.id,
               title: newPage.title,
               components: [],
@@ -383,9 +276,10 @@ export const EditorToolbar: React.FC = () => {
         onRenamePage={(pageId, title) => {
           setPages(prev => prev.map(p => p.id === pageId ? { ...p, title, name: title, updatedAt: new Date().toISOString() } : p));
           if (pageId === currentPageId) {
+            const currentSchema = useEditorStore.getState().schema;
             setSchema({
-              ...schema,
-              page: { ...schema.page, title },
+              ...currentSchema,
+              page: { ...currentSchema.page, title },
             });
           }
           message.success('页面已重命名');
@@ -420,6 +314,6 @@ export const EditorToolbar: React.FC = () => {
           setSchema(newSchema);
         }}
       />
-    </div>
+    </>
   );
 };

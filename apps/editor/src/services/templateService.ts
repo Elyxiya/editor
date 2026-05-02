@@ -1,4 +1,8 @@
-const API_BASE = '/api';
+/**
+ * Template service — uses centralized api.ts for consistent auth header injection
+ */
+
+import { api } from './api';
 
 export interface Template {
   id: string;
@@ -45,17 +49,11 @@ export async function fetchTemplates(params?: {
   if (params?.search) searchParams.set('search', params.search);
   if (params?.isPublic !== undefined) searchParams.set('isPublic', String(params.isPublic));
 
-  const res = await fetch(`${API_BASE}/templates?${searchParams}`);
-  if (!res.ok) throw new Error('Failed to fetch templates');
-  const data = await res.json();
-  return data.data;
+  return api.get<TemplateListItem[]>(`/templates?${searchParams}`);
 }
 
 export async function fetchTemplate(id: string): Promise<Template> {
-  const res = await fetch(`${API_BASE}/templates/${id}`);
-  if (!res.ok) throw new Error('Failed to fetch template');
-  const data = await res.json();
-  return data.data;
+  return api.get<Template>(`/templates/${id}`);
 }
 
 export async function createTemplate(payload: {
@@ -67,14 +65,7 @@ export async function createTemplate(payload: {
   tags?: string[];
   isPublic?: boolean;
 }): Promise<Template> {
-  const res = await fetch(`${API_BASE}/templates`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error('Failed to create template');
-  const data = await res.json();
-  return data.data;
+  return api.post<Template>('/templates', payload);
 }
 
 export async function updateTemplate(
@@ -89,24 +80,13 @@ export async function updateTemplate(
     isPublic: boolean;
   }>
 ): Promise<Template> {
-  const res = await fetch(`${API_BASE}/templates/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error('Failed to update template');
-  const data = await res.json();
-  return data.data;
+  return api.put<Template>(`/templates/${id}`, payload);
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/templates/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete template');
+  await api.delete(`/templates/${id}`);
 }
 
 export async function fetchTemplateCategories(): Promise<TemplateCategory[]> {
-  const res = await fetch(`${API_BASE}/templates/meta/categories`);
-  if (!res.ok) throw new Error('Failed to fetch categories');
-  const data = await res.json();
-  return data.data;
+  return api.get<TemplateCategory[]>('/templates/meta/categories');
 }

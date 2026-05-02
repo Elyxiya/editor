@@ -3,13 +3,13 @@
  * 显示页面版本历史，支持版本对比和回滚
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal, Timeline, Button, Space, Tag, Typography, Empty, message,
   Popconfirm, Divider, Card, Descriptions, Badge, Tooltip
 } from 'antd';
 import {
-  HistoryOutlined, RollbackOutlined, EyeOutlined,
+  HistoryOutlined, RollbackOutlined, EyeOutlined, InfoCircleOutlined,
 } from '@ant-design/icons';
 import type { PageSchema, Page } from '@lowcode/types';
 import { getPageVersions, rollbackPage, getPageVersion, type PageVersion } from '@/services/page';
@@ -20,7 +20,7 @@ interface VersionHistoryPanelProps {
   open: boolean;
   onClose: () => void;
   page: Page;
-  onRollback: (schema: PageSchema, version: number) => void;
+  onRollback: (schema: PageSchema) => void;
 }
 
 export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
@@ -35,25 +35,24 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
   const [selectedVersion, setSelectedVersion] = useState<PageVersion | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
 
-  // 加载版本历史
-  useEffect(() => {
-    if (open && page.id) {
-      loadVersions();
-    }
-  }, [open, page.id]);
-
-  const loadVersions = async () => {
+  const loadVersions = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getPageVersions(page.id);
-      setVersions(data.sort((a, b) => b.version - a.version));
+      setVersions([...data].sort((a, b) => b.version - a.version));
     } catch (error) {
       message.error('加载版本历史失败');
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page.id]);
+
+  useEffect(() => {
+    if (open && page.id) {
+      loadVersions();
+    }
+  }, [open, page.id, loadVersions]);
 
   // 查看版本详情
   const handleViewVersion = async (version: PageVersion) => {
@@ -74,17 +73,28 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
     try {
       const result = await rollbackPage(page.id, version.version);
       message.success(result.message);
-      setVersions(prev => [{
-        ...prev[0],
-        comment: '当前版本'
-      }, {
-        version: result.data.version,
-        schema: JSON.stringify(result.data.schema),
-        createdAt: new Date().toISOString(),
-        comment: '回滚目标版本'
-      }, ...prev.slice(1)]);
+      setVersions(prev => {
+        if (!prev || prev.length === 0) {
+          return [{
+            version: result.data.version,
+            schema: JSON.stringify(result.data.schema),
+            createdAt: new Date().toISOString(),
+            comment: '回滚目标版本'
+          }];
+        }
+        return [
+          { ...prev[0], comment: '当前版本' },
+          {
+            version: result.data.version,
+            schema: JSON.stringify(result.data.schema),
+            createdAt: new Date().toISOString(),
+            comment: '回滚目标版本'
+          },
+          ...prev.slice(1)
+        ];
+      });
       // 通知父组件更新
-      onRollback(result.data.schema, result.data.version);
+      onRollback(result.data.schema);
     } catch {
       message.error('回滚失败');
     } finally {
@@ -343,15 +353,3 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
   );
 };
 
-// 补充图标
-const InfoCircleOutlined: React.FC<{ style?: React.CSSProperties }> = (props) => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 1024 1024"
-    fill="currentColor"
-    style={{ verticalAlign: 'middle', ...props.style }}
-  >
-    <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-204.2 0-372-167.8-372-372s167.8-372 372-372 372 167.8 372 372-167.8 372-372 372zm-32-604h64c9.4 0 17 7.6 17 17s-7.6 17-17 17H480c-9.4 0-17-7.6-17-17s7.6-17 17-17zm24 312h-32c-9.4 0-17-7.6-17-17s7.6-17 17-17h32c9.4 0 17 7.6 17 17s-7.6 17-17 17z" />
-  </svg>
-);

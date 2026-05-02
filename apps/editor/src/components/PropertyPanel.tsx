@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Tabs, Form, Input, Select, Switch, InputNumber, ColorPicker, Divider, Alert, Slider, Typography, message } from 'antd';
 import { useEditorStore } from '@/store/editorStore';
 import { findComponentById } from '@lowcode/schema';
@@ -75,9 +75,9 @@ export const PropertyPanel: React.FC = () => {
     return (selectedComponent?.events?.bindings || []) as EventBinding[];
   }, [selectedComponent]);
 
-  const handleBindingsChange = (bindings: EventBinding[]) => {
+  const handleBindingsChange = useCallback((bindings: EventBinding[]) => {
     updateComponent(selectedId!, { events: { bindings } });
-  };
+  }, [selectedId, updateComponent]);
 
   const getStyleValue = (props: any, key: string): any => {
     if (props?.style && props.style[key] !== undefined) {
@@ -86,11 +86,15 @@ export const PropertyPanel: React.FC = () => {
     return props?.[key];
   };
 
-  const handleStyleChange = (key: string, value: unknown) => {
-    const currentStyle = (selectedComponent?.props?.style || {}) as Record<string, unknown>;
+  const handleStyleChange = useCallback((key: string, value: unknown) => {
+    if (!selectedId) return;
+    const schema = useEditorStore.getState().schema;
+    const comp = findComponentById(schema.page.components, selectedId);
+    if (!comp) return;
+    const currentStyle = (comp.props?.style || {}) as Record<string, unknown>;
     const merged = { ...currentStyle, [key]: value };
-    updateComponent(selectedId!, { style: merged });
-  };
+    updateComponent(selectedId, { style: merged });
+  }, [selectedId, updateComponent]);
 
   if (!selectedComponent) {
     return (
@@ -107,12 +111,13 @@ export const PropertyPanel: React.FC = () => {
     const value = selectedComponent.props[prop.name] ?? prop.defaultValue;
     const rules = prop.validation ? buildValidator(prop.validation) : [];
     const hasValidation = prop.validation && prop.validation.length > 0;
+    const validationError = hasValidation ? validateValue(value, prop.validation!) : null;
 
     const handleChange = (newValue: unknown) => {
       if (hasValidation) {
         const error = validateValue(newValue, prop.validation!);
         if (error) {
-          message.warning({ content: error, key: `prop-${prop.name}` });
+          message.warning(error);
         }
       }
       updateComponent(selectedId!, { [prop.name]: newValue });
@@ -126,8 +131,8 @@ export const PropertyPanel: React.FC = () => {
             label={prop.label}
             name={prop.name}
             rules={rules}
-            validateStatus={hasValidation && validateValue(value, prop.validation!) ? 'error' : undefined}
-            help={hasValidation ? validateValue(value, prop.validation!) : undefined}
+            validateStatus={validationError ? 'error' : undefined}
+            help={validationError || undefined}
           >
             <Input
               value={value as string}
@@ -143,8 +148,8 @@ export const PropertyPanel: React.FC = () => {
             label={prop.label}
             name={prop.name}
             rules={rules}
-            validateStatus={hasValidation && validateValue(value, prop.validation!) ? 'error' : undefined}
-            help={hasValidation ? validateValue(value, prop.validation!) : undefined}
+            validateStatus={validationError ? 'error' : undefined}
+            help={validationError || undefined}
           >
             <InputNumber
               value={value as number}
@@ -182,8 +187,8 @@ export const PropertyPanel: React.FC = () => {
             label={prop.label}
             name={prop.name}
             rules={rules}
-            validateStatus={hasValidation && validateValue(value, prop.validation!) ? 'error' : undefined}
-            help={hasValidation ? validateValue(value, prop.validation!) : undefined}
+            validateStatus={validationError ? 'error' : undefined}
+            help={validationError || undefined}
           >
             <Input.TextArea
               value={Array.isArray(value) ? JSON.stringify(value, null, 2) : (value as string)}

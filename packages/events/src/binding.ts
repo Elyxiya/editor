@@ -26,6 +26,8 @@ export class EventBindingManager {
   private executor: ActionExecutor;
   private componentEvents: Map<string, ComponentEventDefinition[]>;
   private config: EventBindingConfig;
+  /** Maps bindingId → listenerId so unbind can actually remove the listener */
+  private listenerIds: Map<string, string>;
 
   constructor(config: EventBindingConfig = {}) {
     this.bindings = new Map();
@@ -43,6 +45,7 @@ export class EventBindingManager {
 
     this.emitter = getGlobalEmitter();
     this.executor = getActionExecutor();
+    this.listenerIds = new Map();
 
     // 设置默认的事件处理器
     this.setupDefaultHandler();
@@ -206,7 +209,7 @@ export class EventBindingManager {
    * 绑定事件监听
    */
   private bind(binding: EventBinding): void {
-    this.emitter.on(binding.eventType, async (event: LowCodeEvent) => {
+    const unsubscribe = this.emitter.on(binding.eventType, async (event: LowCodeEvent) => {
       // 检查组件 ID 匹配
       if (event.context.componentId !== binding.componentId) return;
 
@@ -221,14 +224,18 @@ export class EventBindingManager {
       // 执行动作
       await this.executeActions(binding.actions, binding.params || {});
     });
+    this.listenerIds.set(binding.id, unsubscribe as unknown as string);
   }
 
   /**
    * 解绑事件监听
    */
-  private unbind(_bindingId: string): void {
-    // 由于使用全局事件发射器，这里需要清理
-    // 实际实现中可能需要保存监听器 ID
+  private unbind(bindingId: string): void {
+    const listenerId = this.listenerIds.get(bindingId);
+    if (listenerId) {
+      this.emitter.off(listenerId);
+      this.listenerIds.delete(bindingId);
+    }
   }
 
   // ============================================================
@@ -347,6 +354,7 @@ export class EventBindingManager {
    * 清空所有绑定
    */
   clear(): void {
+    this.bindings.forEach((_b, id) => this.unbind(id));
     this.bindings.clear();
     this.log('All bindings cleared');
   }

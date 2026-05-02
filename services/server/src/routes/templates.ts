@@ -1,14 +1,19 @@
+/**
+ * Templates routes — list/detail are public, create/update/delete require authentication
+ */
+
 import { Router } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { prisma } from '../prisma.js';
+import { requireAuth, optionalAuth, getAuthenticatedUserId } from '../middleware/auth.js';
 
 const router = Router();
 
-// 获取所有模板
+// Public: list and get templates (no auth required)
 router.get('/', async (req, res) => {
   const { category, search, isPublic } = req.query;
   try {
-    const where: any = {};
+    const where: Record<string, any> = {};
     if (category) where.category = category as string;
     if (isPublic !== undefined) where.isPublic = isPublic === 'true';
     if (search) {
@@ -44,7 +49,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 获取单个模板
 router.get('/:id',
   param('id').notEmpty(),
   async (req, res) => {
@@ -59,14 +63,18 @@ router.get('/:id',
       if (!template) {
         return res.status(404).json({ success: false, message: 'Template not found' });
       }
-      res.json({
-        success: true,
-        data: {
-          ...template,
-          schema: JSON.parse(template.schema),
-          tags: JSON.parse(template.tags),
-        },
-      });
+      try {
+        res.json({
+          success: true,
+          data: {
+            ...template,
+            schema: JSON.parse(template.schema),
+            tags: JSON.parse(template.tags),
+          },
+        });
+      } catch {
+        res.status(500).json({ success: false, message: 'Invalid template data in database' });
+      }
     } catch (error) {
       console.error('Get template error:', error);
       res.status(500).json({ success: false, message: 'Failed to fetch template' });
@@ -74,7 +82,10 @@ router.get('/:id',
   }
 );
 
-// 创建模板
+// Auth required for write operations
+router.use(requireAuth);
+
+// Create template
 router.post('/',
   body('name').notEmpty().withMessage('模板名称必填'),
   body('title').notEmpty().withMessage('模板标题必填'),
@@ -86,8 +97,13 @@ router.post('/',
     }
 
     const { name, title, description, category, schema, tags, isPublic } = req.body;
+    const userId = getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ success: false, message: '认证失败' });
+      return;
+    }
 
-    const componentCount = countComponents((schema as any).page?.components || []);
+    const componentCount = countComponents((schema as any)?.page?.components || []);
 
     try {
       const template = await prisma.template.create({
@@ -100,7 +116,7 @@ router.post('/',
           componentCount,
           tags: JSON.stringify(tags || []),
           isPublic: isPublic || false,
-          createdById: 'default-user',
+          createdById: userId,
         },
       });
 
@@ -119,7 +135,7 @@ router.post('/',
   }
 );
 
-// 更新模板
+// Update template
 router.put('/:id',
   param('id').notEmpty(),
   async (req, res) => {
@@ -130,29 +146,32 @@ router.put('/:id',
 
     const id = req.params['id']!;
     const { name, title, description, category, schema, tags, isPublic } = req.body;
+    const userId = getAuthenticatedUserId(req);
 
     try {
       const existing = await prisma.template.findUnique({ where: { id } });
       if (!existing) {
         return res.status(404).json({ success: false, message: 'Template not found' });
       }
+      if (existing.createdById !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
 
       const componentCount = schema
-        ? countComponents((schema as any).page?.components || [])
+        ? countComponents((schema as any)?.page?.components || [])
         : existing.componentCount;
 
       const template = await prisma.template.update({
         where: { id },
         data: {
-          name: name || existing.name,
-          title: title || existing.title,
-          description: description !== undefined ? description : existing.description,
-          category: category || existing.category,
+          name: name ?? existing.name,
+          title: title ?? existing.title,
+          description: description ?? existing.description,
+          category: category ?? existing.category,
           schema: schema ? JSON.stringify(schema) : existing.schema,
           componentCount,
           tags: tags ? JSON.stringify(tags) : existing.tags,
           isPublic: isPublic !== undefined ? isPublic : existing.isPublic,
-          updatedAt: new Date(),
         },
       });
 
@@ -171,7 +190,7 @@ router.put('/:id',
   }
 );
 
-// 删除模板
+// Delete template
 router.delete('/:id',
   param('id').notEmpty(),
   async (req, res) => {
@@ -181,7 +200,15 @@ router.delete('/:id',
     }
 
     const id = req.params['id']!;
+    const userId = getAuthenticatedUserId(req);
     try {
+      const template = await prisma.template.findUnique({ where: { id } });
+      if (!template) {
+        return res.status(404).json({ success: false, message: 'Template not found' });
+      }
+      if (template.createdById !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
       await prisma.template.delete({ where: { id } });
       res.json({ success: true, message: 'Template deleted' });
     } catch (error) {
@@ -191,7 +218,7 @@ router.delete('/:id',
   }
 );
 
-// 获取模板分类列表
+// Public: get categories
 router.get('/meta/categories', async (req, res) => {
   try {
     const categories = await prisma.template.groupBy({

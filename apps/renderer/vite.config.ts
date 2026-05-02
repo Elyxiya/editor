@@ -12,6 +12,15 @@ export default defineConfig({
       '@lowcode/components': path.resolve(__dirname, '../../packages/components/src'),
     },
   },
-  server: { port: 3001, host: true },
+  server: {
+    port: 3001,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
+    },
+  },
   build: { sourcemap: true },
 });

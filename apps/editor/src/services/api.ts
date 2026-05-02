@@ -64,7 +64,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
     if (timeoutId) clearTimeout(timeoutId);
 
-    const result: ApiResponse<T> = await response.json();
+    const contentType = response.headers.get('content-type');
+    const isJson = contentType?.includes('application/json');
+    let result: ApiResponse<T>;
+
+    if (isJson) {
+      result = await response.json();
+    } else {
+      const text = await response.text();
+      result = { success: false, message: text || 'Invalid response' };
+    }
 
     if (!response.ok || !result.success) {
       if (response.status === 401) {

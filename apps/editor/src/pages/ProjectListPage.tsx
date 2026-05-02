@@ -20,7 +20,7 @@ export const ProjectListPage: React.FC = () => {
   };
 
   const handleOpenProject = (projectId: string) => {
-    navigate(`/editor?project=${projectId}`);
+    navigate(`/editor/${projectId}`);
   };
 
   return (
