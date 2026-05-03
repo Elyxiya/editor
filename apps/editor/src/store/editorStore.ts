@@ -23,7 +23,17 @@ interface EditorState {
   isPreview: boolean;
   history: HistoryState;
   isDirty: boolean;
+  isPublished: boolean;
   clipboard: PageComponent | null;
+  pages: Array<{
+    id: string;
+    title: string;
+    name: string;
+    version: number;
+    isPublished: boolean;
+    updatedAt: string;
+  }>;
+  pageSchemas: Record<string, PageSchema>;
 }
 
 interface EditorActions {
@@ -61,6 +71,14 @@ interface EditorActions {
   saveSnapshot: () => void;
   savePage: () => Promise<void>;
   loadPage: (id: string) => Promise<void>;
+  setPublished: (published: boolean) => void;
+  switchPage: (pageId: string) => Promise<void>;
+  createPage: (title: string) => void;
+  renamePage: (pageId: string, title: string) => void;
+  deletePage: (pageId: string) => void;
+  duplicatePage: (pageId: string) => void;
+  setPagePublished: (pageId: string, published: boolean) => void;
+  loadPageList: () => Promise<void>;
 }
 
 const MAX_HISTORY = 50;
@@ -78,7 +96,17 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     isDragging: false,
     isPreview: false,
     isDirty: false,
+    isPublished: false,
     clipboard: null,
+    pages: [{
+      id: 'default',
+      title: '未命名页面',
+      name: '未命名页面',
+      version: 1,
+      isPublished: false,
+      updatedAt: new Date().toISOString(),
+    }],
+    pageSchemas: {},
     history: {
       past: [],
       present: createEmptyPageSchema('未命名页面'),
@@ -578,6 +606,154 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       } catch (error) {
         console.error('Load failed:', error);
         throw error;
+      }
+    },
+
+    setPublished: (published) =>
+      set((state) => {
+        state.isPublished = published;
+      }),
+
+    switchPage: async (pageId) => {
+      const currentPageId = get().schema.page.id;
+      if (currentPageId === pageId) return;
+      const { pageSchemas } = get();
+      if (pageSchemas[pageId]) {
+        set((state) => {
+          state.schema = JSON.parse(JSON.stringify(pageSchemas[pageId]));
+          state.isDirty = false;
+          state.history = {
+            past: [],
+            present: JSON.parse(JSON.stringify(pageSchemas[pageId])),
+            future: [],
+          };
+          state.selectedId = null;
+          state.selectedIds = [];
+        });
+      } else {
+        await get().loadPage(pageId);
+      }
+    },
+
+    createPage: (title) => {
+      const newId = `page_${Date.now()}`;
+      const newSchema = createEmptyPageSchema(title);
+      newSchema.page.id = newId;
+      set((state) => {
+        state.pages.push({
+          id: newId,
+          title,
+          name: title,
+          version: 1,
+          isPublished: false,
+          updatedAt: new Date().toISOString(),
+        });
+        state.pageSchemas[newId] = newSchema;
+        state.schema = JSON.parse(JSON.stringify(newSchema));
+        state.isDirty = false;
+        state.isPublished = false;
+        state.history = {
+          past: [],
+          present: JSON.parse(JSON.stringify(newSchema)),
+          future: [],
+        };
+        state.selectedId = null;
+        state.selectedIds = [];
+      });
+    },
+
+    renamePage: (pageId, title) => {
+      set((state) => {
+        const page = state.pages.find(p => p.id === pageId);
+        if (page) {
+          page.title = title;
+          page.name = title;
+          page.updatedAt = new Date().toISOString();
+        }
+        if (state.schema.page.id === pageId) {
+          state.schema.page.title = title;
+        }
+        if (state.pageSchemas[pageId]) {
+          state.pageSchemas[pageId].page.title = title;
+        }
+      });
+    },
+
+    deletePage: (pageId) => {
+      set((state) => {
+        state.pages = state.pages.filter(p => p.id !== pageId);
+        delete state.pageSchemas[pageId];
+        if (state.schema.page.id === pageId && state.pages.length > 0) {
+          const firstPage = state.pages[0];
+          state.schema = JSON.parse(JSON.stringify(state.pageSchemas[firstPage.id] || createEmptyPageSchema(firstPage.title)));
+          state.schema.page.id = firstPage.id;
+          state.isDirty = false;
+          state.history = {
+            past: [],
+            present: JSON.parse(JSON.stringify(state.schema)),
+            future: [],
+          };
+          state.selectedId = null;
+          state.selectedIds = [];
+        }
+      });
+    },
+
+    duplicatePage: (pageId) => {
+      const page = get().pages.find(p => p.id === pageId);
+      const pageSchema = get().pageSchemas[pageId];
+      if (!page) return;
+      const newId = `page_${Date.now()}`;
+      const newSchema = pageSchema
+        ? JSON.parse(JSON.stringify(pageSchema))
+        : createEmptyPageSchema(`${page.title} (副本)`);
+      newSchema.page.id = newId;
+      newSchema.page.title = `${page.title} (副本)`;
+      set((state) => {
+        state.pages.push({
+          id: newId,
+          title: `${page.title} (副本)`,
+          name: page.name,
+          version: 1,
+          isPublished: false,
+          updatedAt: new Date().toISOString(),
+        });
+        state.pageSchemas[newId] = newSchema;
+      });
+    },
+
+    setPagePublished: (pageId, published) => {
+      set((state) => {
+        const page = state.pages.find(p => p.id === pageId);
+        if (page) {
+          page.isPublished = published;
+        }
+      });
+    },
+
+    loadPageList: async () => {
+      try {
+        const response = await fetch('/api/pages', {
+          headers: {
+            ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {}),
+          },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          set((state) => {
+            state.pages = data.data.map((p: any) => ({
+              id: p.id,
+              title: p.title,
+              name: p.name,
+              version: p.version,
+              isPublished: p.isPublished,
+              updatedAt: p.updatedAt,
+            }));
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load page list:', e);
       }
     },
   }))

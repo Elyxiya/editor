@@ -276,6 +276,8 @@ export interface FlowBuilder {
   addConnection(connection: LogicConnection): FlowBuilder;
   addConnectionBatch(connections: LogicConnection[]): FlowBuilder;
   removeConnection(connectionId: string): FlowBuilder;
+  setNodes(nodes: LogicNode[]): FlowBuilder;
+  setConnections(connections: LogicConnection[]): FlowBuilder;
   setMetadata(metadata: FlowMetadata): FlowBuilder;
   build(): LogicFlow;
 }
@@ -372,6 +374,16 @@ export function createFlowBuilder(initial?: Partial<LogicFlow>): FlowBuilder {
 
     removeConnection(connectionId) {
       state.connections = state.connections.filter((c) => c.id !== connectionId);
+      return this;
+    },
+
+    setNodes(nodes) {
+      state.nodes = nodes;
+      return this;
+    },
+
+    setConnections(connections) {
+      state.connections = connections;
       return this;
     },
 

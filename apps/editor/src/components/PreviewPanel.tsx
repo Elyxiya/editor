@@ -26,6 +26,17 @@ const DEVICE_LABELS: Record<Device, string> = {
   mobile: '手机',
 };
 
+const MAX_POST_MESSAGE_SIZE = 1_000_000;
+
+function encodeSchemaForTransfer(schema: PageSchema): { compressed: string; method: 'raw' | 'base64' } {
+  const raw = JSON.stringify(schema);
+  if (raw.length <= MAX_POST_MESSAGE_SIZE) {
+    return { compressed: raw, method: 'raw' };
+  }
+  const encoded = btoa(encodeURIComponent(raw));
+  return { compressed: encoded, method: 'base64' };
+}
+
 export const PreviewPanel: React.FC<PreviewPanelProps> = ({ open, schema, onClose }) => {
   const [device, setDevice] = useState<Device>('pc');
   const [loading, setLoading] = useState(true);
@@ -53,13 +64,13 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ open, schema, onClos
     setIframeKey(k => k + 1);
   }, [open]);
 
-  // Send schema to iframe when iframe key changes (after load) and panel is open
   useEffect(() => {
     if (!open || !schema) return;
     const timeoutId = setTimeout(() => {
       if (iframeRef.current?.contentWindow) {
+        const { compressed, method } = encodeSchemaForTransfer(schema);
         iframeRef.current.contentWindow.postMessage(
-          { type: 'preview-schema', schema, dataSources: schema.dataSources },
+          { type: 'preview-schema', schema: compressed, method, dataSources: schema.dataSources },
           '*'
         );
       }

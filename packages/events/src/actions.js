@@ -119,10 +119,11 @@ export class ActionExecutor {
         this.register('navigate', async (config) => {
             const cfg = config;
             let path = cfg.path;
-            // 替换路径参数
+            // Replace all occurrences of path parameters
             Object.entries(this.context).forEach(([key, value]) => {
-                path = path.replace(`{${key}}`, String(value));
-                path = path.replace(`:${key}`, String(value));
+                const strVal = String(value ?? '');
+                path = path.split(`{${key}}`).join(strVal);
+                path = path.split(`:${key}`).join(strVal);
             });
             // 添加查询参数
             const params = cfg.params || {};
@@ -265,20 +266,12 @@ export class ActionExecutor {
             }
             return { channel };
         });
-        // 自定义脚本动作
-        this.register('script', async (config) => {
-            const cfg = config;
-            try {
-                // 使用 Function 构造器创建安全的作用域
-                const keys = Object.keys(this.context);
-                const values = Object.values(this.context);
-                const fn = new Function(...keys, cfg.script);
-                return fn(...values);
-            }
-            catch (error) {
-                console.error('Script execution error:', error);
-                throw error;
-            }
+        // 自定义脚本动作 — disabled for security
+        // Script execution via new Function() is a code injection risk.
+        // Use the expression action instead for safe, whitelisted operations.
+        this.register('script', async (_config) => {
+            console.warn('[ActionExecutor] script action is disabled for security reasons. Use the expression action instead.');
+            throw new Error('script action is disabled');
         });
         // 表达式动作
         this.register('expression', async (config) => {

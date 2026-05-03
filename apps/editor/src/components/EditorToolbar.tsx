@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Button, Space, Tooltip, Divider, Modal, message, Select, Input, Dropdown } from 'antd';
 import {
   SaveOutlined, UndoOutlined, RedoOutlined, ExportOutlined, EyeOutlined,
-  DesktopOutlined, TabletOutlined, MobileOutlined, HistoryOutlined, CloudUploadOutlined,
+  DesktopOutlined, TabletOutlined, MobileOutlined, HistoryOutlined, CloudUploadOutlined, CloudSyncOutlined,
   ThunderboltOutlined, ApiOutlined, FileTextOutlined,
   AlignLeftOutlined, AlignCenterOutlined, AlignRightOutlined,
   VerticalAlignTopOutlined, VerticalAlignMiddleOutlined, VerticalAlignBottomOutlined,
@@ -16,15 +16,17 @@ import { DataSourceManagementPanel } from '@/components/DataSourceManagementPane
 import { PageManagementPanel } from '@/components/PageManagementPanel';
 import { TemplateManagementPanel } from '@/components/TemplateManagementPanel';
 import { PreviewPanel } from '@/components/PreviewPanel';
+import { publishPage, unpublishPage } from '@/services/page';
 import type { LogicFlow } from '@lowcode/logic-engine';
 import type { DataSource as DataSourceType } from '@lowcode/types';
 
 export const EditorToolbar: React.FC = () => {
-  const { schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage, selectedIds, alignComponents, distributeComponents } = useEditorStore();
+  const { schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage, selectedIds, alignComponents, distributeComponents, isPublished, setPublished, pages, isDirty, switchPage, createPage, renamePage, deletePage, duplicatePage } = useEditorStore();
   const canUndo = useEditorStore((state) => state.history.past.length > 0);
   const canRedo = useEditorStore((state) => state.history.future.length > 0);
   const hasMultiSelect = selectedIds && selectedIds.length > 1;
   const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
   const [showLogicFlowEditor, setShowLogicFlowEditor] = useState(false);
@@ -34,10 +36,6 @@ export const EditorToolbar: React.FC = () => {
   const [showPreviewPanel, setShowPreviewPanel] = useState(false);
   const [currentFlow, setCurrentFlow] = useState<LogicFlow | undefined>();
 
-  // 页面管理
-  const [pages, setPages] = useState([
-    { id: schema.page.id || 'default', title: schema.page.title, name: schema.page.title, version: 1, isPublished: false, updatedAt: new Date().toISOString() }
-  ]);
   const currentPageId = schema.page.id || 'default';
 
   const handleSave = async () => {
@@ -56,12 +54,57 @@ export const EditorToolbar: React.FC = () => {
     setShowExportPanel(true);
   };
 
-  const handlePublish = () => {
+  const handlePublish = useCallback(async () => {
+    const pageId = schema.page.id;
+    if (!pageId || pageId === 'default') {
+      message.warning('请先保存页面后再发布');
+      return;
+    }
     Modal.confirm({
-      title: '确认发布', content: '确定要发布当前页面吗？',
-      okText: '确认发布', onOk: () => message.success('发布成功'),
+      title: '确认发布',
+      content: isPublished
+        ? '页面已发布，确定要重新发布以获取最新更改吗？'
+        : '确定要发布当前页面吗？',
+      okText: '确认发布',
+      onOk: async () => {
+        setIsPublishing(true);
+        try {
+          if (isPublished) {
+            await publishPage(pageId);
+            message.success('页面已重新发布');
+          } else {
+            await publishPage(pageId);
+            setPublished(true);
+            message.success('页面发布成功');
+          }
+        } catch {
+          message.error('发布失败，请重试');
+        } finally {
+          setIsPublishing(false);
+        }
+      },
     });
-  };
+  }, [schema.page.id, isPublished, setPublished]);
+
+  const handleUnpublish = useCallback(async () => {
+    const pageId = schema.page.id;
+    if (!pageId || pageId === 'default') return;
+    Modal.confirm({
+      title: '取消发布',
+      content: '确定要取消发布当前页面吗？取消后用户将无法访问。',
+      okText: '确认取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await unpublishPage(pageId);
+          setPublished(false);
+          message.success('已取消发布');
+        } catch {
+          message.error('操作失败，请重试');
+        }
+      },
+    });
+  }, [schema.page.id, setPublished]);
 
   const handleLogicFlowSave = useCallback((flow: LogicFlow) => {
     setCurrentFlow(flow);
@@ -174,7 +217,24 @@ export const EditorToolbar: React.FC = () => {
             <Divider type="vertical" />
             <Button icon={<EyeOutlined />} onClick={() => setShowPreviewPanel(true)}>预览</Button>
             <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
-            <Button type="primary" icon={<CloudUploadOutlined />} onClick={handlePublish}>发布</Button>
+            {isPublished ? (
+              <Button
+                icon={<CloudSyncOutlined />}
+                onClick={handleUnpublish}
+                style={{ color: '#faad14', borderColor: '#faad14' }}
+              >
+                已发布
+              </Button>
+            ) : (
+              <Button
+                type="primary"
+                icon={<CloudUploadOutlined />}
+                onClick={handlePublish}
+                loading={isPublishing}
+              >
+                发布
+              </Button>
+            )}
           </Space>
         </div>
       </div>
@@ -247,61 +307,49 @@ export const EditorToolbar: React.FC = () => {
         pages={pages}
         currentPageId={currentPageId}
         onSwitchPage={(pageId) => {
-          if (pageId !== currentPageId) {
-            message.info(`切换到页面: ${pages.find(p => p.id === pageId)?.title || pageId}`);
+          if (pageId === currentPageId) return;
+          if (isDirty) {
+            Modal.confirm({
+              title: '当前页面有未保存的更改',
+              content: '切换页面将丢失未保存的更改，确定要切换吗？',
+              okText: '不保存并切换',
+              cancelText: '取消',
+              okButtonProps: { danger: true },
+              onOk: () => {
+                switchPage(pageId);
+              },
+            });
+          } else {
+            switchPage(pageId);
           }
         }}
         onCreatePage={(title) => {
-          const newPage = {
-            id: `page_${Date.now()}`,
-            title,
-            name: title,
-            version: 1,
-            isPublished: false,
-            updatedAt: new Date().toISOString(),
-          };
-          setPages(prev => [...prev, newPage]);
-          const currentSchema = useEditorStore.getState().schema;
-          setSchema({
-            ...currentSchema,
-            page: {
-              ...currentSchema.page,
-              id: newPage.id,
-              title: newPage.title,
-              components: [],
-            },
-          });
+          createPage(title);
           message.success(`已创建页面: ${title}`);
         }}
         onRenamePage={(pageId, title) => {
-          setPages(prev => prev.map(p => p.id === pageId ? { ...p, title, name: title, updatedAt: new Date().toISOString() } : p));
-          if (pageId === currentPageId) {
-            const currentSchema = useEditorStore.getState().schema;
-            setSchema({
-              ...currentSchema,
-              page: { ...currentSchema.page, title },
-            });
-          }
+          renamePage(pageId, title);
           message.success('页面已重命名');
         }}
         onDeletePage={(pageId) => {
-          setPages(prev => prev.filter(p => p.id !== pageId));
-          message.success('页面已删除');
+          if (pages.length <= 1) {
+            message.warning('至少保留一个页面');
+            return;
+          }
+          Modal.confirm({
+            title: '确认删除',
+            content: '确定要删除该页面吗？此操作不可恢复。',
+            okText: '删除',
+            okButtonProps: { danger: true },
+            onOk: () => {
+              deletePage(pageId);
+              message.success('页面已删除');
+            },
+          });
         }}
         onDuplicatePage={(pageId) => {
-          const source = pages.find(p => p.id === pageId);
-          if (source) {
-            const newPage = {
-              ...source,
-              id: `page_${Date.now()}`,
-              title: `${source.title} (副本)`,
-              name: `${source.name}-copy`,
-              version: 1,
-              updatedAt: new Date().toISOString(),
-            };
-            setPages(prev => [...prev, newPage]);
-            message.success(`已复制页面: ${newPage.title}`);
-          }
+          duplicatePage(pageId);
+          message.success('页面已复制');
         }}
       />
 

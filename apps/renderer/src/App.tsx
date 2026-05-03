@@ -99,9 +99,20 @@ const PageLoader: React.FC<PageLoaderProps> = ({ schemaParam, pageIdParam, previ
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'preview-schema' && event.data.schema) {
-        setSchema(event.data.schema as PageSchema);
-        setLoading(false);
-        setError(null);
+        try {
+          let parsed: PageSchema;
+          if (event.data.method === 'base64') {
+            parsed = JSON.parse(decodeURIComponent(atob(event.data.schema))) as PageSchema;
+          } else {
+            parsed = event.data.schema as PageSchema;
+          }
+          setSchema(parsed);
+          setLoading(false);
+          setError(null);
+        } catch {
+          setError('Schema 解析失败');
+          setLoading(false);
+        }
       }
     };
     window.addEventListener('message', handleMessage);

@@ -10,6 +10,8 @@ export declare class EventBindingManager {
     private executor;
     private componentEvents;
     private config;
+    /** Maps bindingId → listenerId so unbind can actually remove the listener */
+    private listenerIds;
     constructor(config?: EventBindingConfig);
     /**
      * 创建事件绑定

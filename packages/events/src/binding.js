@@ -25,6 +25,7 @@ export class EventBindingManager {
         };
         this.emitter = getGlobalEmitter();
         this.executor = getActionExecutor();
+        this.listenerIds = new Map();
         // 设置默认的事件处理器
         this.setupDefaultHandler();
     }
@@ -141,8 +142,7 @@ export class EventBindingManager {
      * 绑定事件监听
      */
     bind(binding) {
-        const eventKey = `${binding.componentId}:${binding.eventType}`;
-        this.emitter.on(binding.eventType, async (event) => {
+        const unsubscribe = this.emitter.on(binding.eventType, async (event) => {
             // 检查组件 ID 匹配
             if (event.context.componentId !== binding.componentId)
                 return;
@@ -156,13 +156,17 @@ export class EventBindingManager {
             // 执行动作
             await this.executeActions(binding.actions, binding.params || {});
         });
+        this.listenerIds.set(binding.id, unsubscribe);
     }
     /**
      * 解绑事件监听
      */
     unbind(bindingId) {
-        // 由于使用全局事件发射器，这里需要清理
-        // 实际实现中可能需要保存监听器 ID
+        const listenerId = this.listenerIds.get(bindingId);
+        if (listenerId) {
+            this.emitter.off(listenerId);
+            this.listenerIds.delete(bindingId);
+        }
     }
     // ============================================================
     // 动作执行
@@ -255,6 +259,7 @@ export class EventBindingManager {
      * 清空所有绑定
      */
     clear() {
+        this.bindings.forEach((_b, id) => this.unbind(id));
         this.bindings.clear();
         this.log('All bindings cleared');
     }
