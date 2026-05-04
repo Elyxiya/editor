@@ -34,8 +34,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     (req as any).user = { userId: decoded.userId };
     next();
   } catch {
-    localStorage?.removeItem('token');
-    localStorage?.removeItem('user');
     res.status(401).json({ success: false, message: '无效或过期的认证令牌' });
   }
 }

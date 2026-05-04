@@ -31,7 +31,7 @@ import {
   PlayCircleOutlined,
   LinkOutlined,
 } from '@ant-design/icons';
-import type { ComponentEventDefinition, EventBinding } from '@lowcode/events';
+import type { ComponentEventDefinition, EventBinding, Action } from '@lowcode/events';
 import { getComponentMeta } from '@lowcode/components';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -142,7 +142,7 @@ export const EventBindingPanel: React.FC<EventBindingPanelProps> = ({
     form.setFieldsValue({
       enabled: true,
       condition: '',
-      actions: [{ type: 'showMessage', config: { type: 'success', content: '' } }],
+      actions: [{ id: uuidv4(), type: 'showMessage', config: { type: 'success', content: '' } }],
     });
     setModalOpen(true);
   }, [form, eventDefinitions]);
@@ -167,13 +167,20 @@ export const EventBindingPanel: React.FC<EventBindingPanelProps> = ({
 
   const handleSaveBinding = useCallback(() => {
     form.validateFields().then((values) => {
+      const actionsWithIds = (values.actions || []).map((a: Action & { type?: string; config?: Record<string, unknown> }) => ({
+        id: a.id || uuidv4(),
+        type: a.type || 'expression',
+        config: a.config || {},
+        condition: a.condition,
+        delay: a.delay,
+      }));
       const binding: EventBinding = {
         id: editingIndex !== null ? bindings[editingIndex].id : uuidv4(),
         componentId,
         eventType: values.eventType,
         enabled: values.enabled,
         condition: values.condition || undefined,
-        actions: values.actions || [],
+        actions: actionsWithIds,
       };
 
       let newBindings: EventBinding[];
@@ -590,7 +597,7 @@ export const EventBindingPanel: React.FC<EventBindingPanelProps> = ({
 
                 <Button
                   type="dashed"
-                  onClick={() => add({ type: 'showMessage', config: { type: 'success', content: '' } })}
+                  onClick={() => add({ id: uuidv4(), type: 'showMessage', config: { type: 'success', content: '' } })}
                   block
                   icon={<PlusOutlined />}
                   style={{ marginBottom: 8 }}

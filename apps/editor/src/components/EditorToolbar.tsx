@@ -21,7 +21,12 @@ import type { LogicFlow } from '@lowcode/logic-engine';
 import type { DataSource as DataSourceType } from '@lowcode/types';
 
 export const EditorToolbar: React.FC = () => {
-  const { schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage, selectedIds, alignComponents, distributeComponents, isPublished, setPublished, pages, isDirty, switchPage, createPage, renamePage, deletePage, duplicatePage } = useEditorStore();
+  const {
+    schema, setSchema, undo, redo, device, setDevice, zoom, setZoom, savePage,
+    selectedIds, alignComponents, distributeComponents, isPublished, setPublished,
+    pages, isDirty, switchPage, createPage, renamePage, deletePage, duplicatePage,
+    updateLogicFlow, updateDataSources,
+  } = useEditorStore();
   const canUndo = useEditorStore((state) => state.history.past.length > 0);
   const canRedo = useEditorStore((state) => state.history.future.length > 0);
   const hasMultiSelect = selectedIds && selectedIds.length > 1;
@@ -107,31 +112,18 @@ export const EditorToolbar: React.FC = () => {
   }, [schema.page.id, setPublished]);
 
   const handleLogicFlowSave = useCallback((flow: LogicFlow) => {
-    setCurrentFlow(flow);
-    const currentSchema = useEditorStore.getState().schema;
-    const newSchema = {
-      ...currentSchema,
-      page: {
-        ...currentSchema.page,
-        props: {
-          ...currentSchema.page.props,
-          logicFlow: flow,
-        },
-      },
-    };
-    setSchema(newSchema);
+    if (flow.id) {
+      updateLogicFlow(flow.id, flow);
+    } else {
+      updateLogicFlow(`flow_${Date.now()}`, { ...flow, id: `flow_${Date.now()}` });
+    }
     message.success('逻辑流程已保存');
-  }, [setSchema]);
+  }, [updateLogicFlow]);
 
   const handleDataSourceSave = useCallback((dataSources: Record<string, DataSourceType>) => {
-    const currentSchema = useEditorStore.getState().schema;
-    const newSchema = {
-      ...currentSchema,
-      dataSources,
-    };
-    setSchema(newSchema);
+    updateDataSources(dataSources);
     message.success('数据源配置已保存');
-  }, [setSchema]);
+  }, [updateDataSources]);
 
   return (
     <>

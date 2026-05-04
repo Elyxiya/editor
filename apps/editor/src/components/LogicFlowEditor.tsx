@@ -29,6 +29,7 @@ import '@xyflow/react/dist/style.css';
 import type { LogicFlow, LogicNode } from '@lowcode/logic-engine';
 import {
   createFlowBuilder,
+  createConnection,
   createTriggerNode,
   createActionNode,
   createLogicNode,
@@ -95,10 +96,10 @@ function rfNodeToLogicNode(rfNode: Node, original?: LogicNode): LogicNode {
 
 function rfEdgeToConnection(edge: Edge) {
   return {
-    from: edge.source,
-    to: edge.target,
-    fromPort: edge.sourceHandle || 'default',
-    toPort: edge.targetHandle || 'default',
+    source: edge.source,
+    target: edge.target,
+    sourceHandle: edge.sourceHandle || 'default',
+    targetHandle: edge.targetHandle || 'default',
   };
 }
 
@@ -259,14 +260,14 @@ export const LogicFlowEditor: React.FC<LogicFlowEditorProps> = ({
 
   const initialEdges = useMemo(() =>
     currentFlow.connections.map(conn => ({
-      id: `${conn.from}-${conn.fromPort}-${conn.to}-${conn.toPort}`,
-      source: conn.from,
-      sourceHandle: conn.fromPort,
-      target: conn.to,
-      targetHandle: conn.toPort,
+      id: `${conn.source}-${conn.sourceHandle}-${conn.target}-${conn.targetHandle}`,
+      source: conn.source,
+      sourceHandle: conn.sourceHandle,
+      target: conn.target,
+      targetHandle: conn.targetHandle,
       type: 'smoothstep',
       animated: true,
-      style: { stroke: NODE_COLORS[currentFlow.nodes.find(n => n.id === conn.from)?.category || 'trigger'] || '#1890ff', strokeWidth: 2 },
+      style: { stroke: NODE_COLORS[currentFlow.nodes.find(n => n.id === conn.source)?.category || 'trigger'] || '#1890ff', strokeWidth: 2 },
     })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -393,14 +394,14 @@ export const LogicFlowEditor: React.FC<LogicFlowEditorProps> = ({
     setNodes(layoutedFlow.nodes.map(logicNodeToRFNode));
     setEdges(eds => {
       return layoutedFlow.connections.map(conn => ({
-        id: `${conn.from}-${conn.fromPort}-${conn.to}-${conn.toPort}`,
-        source: conn.from,
-        sourceHandle: conn.fromPort,
-        target: conn.to,
-        targetHandle: conn.toPort,
+        id: `${conn.source}-${conn.sourceHandle}-${conn.target}-${conn.targetHandle}`,
+        source: conn.source,
+        sourceHandle: conn.sourceHandle,
+        target: conn.target,
+        targetHandle: conn.targetHandle,
         type: 'smoothstep',
         animated: true,
-        style: { stroke: NODE_COLORS[layoutedFlow.nodes.find(n => n.id === conn.from)?.category || 'trigger'] || '#1890ff', strokeWidth: 2 },
+        style: { stroke: NODE_COLORS[layoutedFlow.nodes.find(n => n.id === conn.source)?.category || 'trigger'] || '#1890ff', strokeWidth: 2 },
       }));
     });
   }, [currentFlow, setNodes, setEdges]);

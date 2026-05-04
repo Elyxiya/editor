@@ -4,7 +4,7 @@
  * 数据源管理面板 - 管理页面级别的数据源配置（API、Mock、变量）
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Table, Button, Space, Tag, Modal, Form, Input, Select, Switch,
   InputNumber, Divider, Popconfirm, Typography, Empty, message, Tabs, Alert,
@@ -39,6 +39,11 @@ export const DataSourceManagementPanel: React.FC<DataSourceManagementPanelProps>
   const [dsList, setDsList] = useState<Array<DataSourceType & { key: string }>>(() =>
     Object.entries(dataSources).map(([key, ds]) => ({ ...ds, key }))
   );
+
+  // Sync dataSources from props when panel opens or dataSources changes
+  useEffect(() => {
+    setDsList(Object.entries(dataSources).map(([key, ds]) => ({ ...ds, key })));
+  }, [open, dataSources]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>('api');

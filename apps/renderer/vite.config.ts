@@ -10,6 +10,11 @@ export default defineConfig({
       '@lowcode/types': path.resolve(__dirname, '../../packages/types/src'),
       '@lowcode/schema': path.resolve(__dirname, '../../packages/schema/src'),
       '@lowcode/components': path.resolve(__dirname, '../../packages/components/src'),
+      '@lowcode/utils': path.resolve(__dirname, '../../packages/utils/src'),
+      '@lowcode/codegen': path.resolve(__dirname, '../../packages/codegen/src'),
+      '@lowcode/logic-engine': path.resolve(__dirname, '../../packages/logic-engine/src'),
+      '@lowcode/datasource': path.resolve(__dirname, '../../packages/datasource/src'),
+      '@lowcode/events': path.resolve(__dirname, '../../packages/events/src'),
     },
   },
   server: {

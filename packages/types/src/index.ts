@@ -90,10 +90,11 @@ export interface DataSourceConfig {
 
 export interface LogicNode {
   id: string;
-  type: 'trigger' | 'action' | 'logic' | 'data';
-  subtype: string;
+  type: string;
+  category?: 'trigger' | 'action' | 'logic' | 'data';
   label: string;
   config: Record<string, unknown>;
+  position?: { x: number; y: number };
   inputs?: string[];
   outputs?: string[];
 }
@@ -101,7 +102,7 @@ export interface LogicNode {
 export interface LogicFlow {
   id: string;
   name: string;
-  trigger: string;
+  trigger?: string;
   nodes: LogicNode[];
   connections: LogicConnection[];
 }

@@ -1,8 +1,86 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { PageSchema, PageComponent } from '@lowcode/types';
-import { createEmptyPageSchema, generateComponentId, insertComponent, removeComponentById, updateComponentProps, moveComponent as moveComponentHelper, findComponentById, cloneComponent, swapInSiblings, moveToStartOfSiblings, moveToEndOfSiblings, updateComponentInTree } from '@lowcode/schema';
+import {
+  createEmptyPageSchema,
+  generateComponentId,
+  insertComponent,
+  removeComponentById,
+  updateComponentProps,
+  moveComponent as moveComponentHelper,
+  findComponentById,
+  cloneComponent,
+  swapInSiblings,
+  moveToStartOfSiblings,
+  moveToEndOfSiblings,
+  updateComponentInTree,
+} from '@lowcode/schema';
 import { getComponentMeta } from '@lowcode/components';
+
+const MAX_HISTORY = 50;
+const STORAGE_KEY = 'lowcode_editor_history_v1';
+const MAX_PERSISTED_SNAPSHOTS = 10;
+
+// ============================================================
+// localStorage 持久化层
+// ============================================================
+
+interface PersistedHistory {
+  pageId: string;
+  schemaId: string;
+  past: PageSchema[];
+  present: PageSchema;
+  future: PageSchema[];
+}
+
+function loadHistoryFromStorage(pageId: string): PersistedHistory | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data: PersistedHistory = JSON.parse(raw);
+    if (data.pageId !== pageId) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function saveHistoryToStorage(
+  pageId: string,
+  history: { past: PageSchema[]; present: PageSchema; future: PageSchema[] }
+): void {
+  try {
+    const recent = history.past.slice(-MAX_PERSISTED_SNAPSHOTS);
+    const data: PersistedHistory = {
+      pageId,
+      schemaId: history.present?.page?.id || '',
+      past: recent,
+      present: history.present,
+      future: [],
+    };
+    const serialized = JSON.stringify(data);
+    if (serialized.length > 4 * 1024 * 1024) return;
+    localStorage.setItem(STORAGE_KEY, serialized);
+  } catch {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function clearHistoryStorage(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ============================================================
+// 类型定义
+// ============================================================
 
 interface HistoryState {
   past: PageSchema[];
@@ -50,10 +128,19 @@ interface EditorActions {
   setDragging: (isDragging: boolean) => void;
   setPreview: (isPreview: boolean) => void;
 
-  addComponent: (componentType: string, targetId: string | null, position: 'before' | 'after' | 'inside') => void;
+  addComponent: (
+    componentType: string,
+    targetId: string | null,
+    position: 'before' | 'after' | 'inside'
+  ) => void;
   removeComponent: (id: string) => void;
   updateComponent: (id: string, props: Record<string, unknown>) => void;
-  moveComponent: (sourceId: string, targetId: string | null, position: 'before' | 'after' | 'inside', index?: number) => void;
+  moveComponent: (
+    sourceId: string,
+    targetId: string | null,
+    position: 'before' | 'after' | 'inside',
+    index?: number
+  ) => void;
   duplicateComponent: (id: string) => void;
   pasteComponent: () => void;
   copyComponent: (id: string) => void;
@@ -79,67 +166,83 @@ interface EditorActions {
   duplicatePage: (pageId: string) => void;
   setPagePublished: (pageId: string, published: boolean) => void;
   loadPageList: () => Promise<void>;
+
+  // Logic flow management
+  addLogicFlow: (flow: import('@lowcode/types').LogicFlow) => void;
+  updateLogicFlow: (flowId: string, flow: import('@lowcode/types').LogicFlow) => void;
+  removeLogicFlow: (flowId: string) => void;
+
+  // Data source management
+  updateDataSources: (dataSources: Record<string, import('@lowcode/types').DataSource>) => void;
 }
 
-const MAX_HISTORY = 50;
-
 export const useEditorStore = create<EditorState & EditorActions>()(
-  immer((set, get) => ({
-    schema: createEmptyPageSchema('未命名页面'),
+  immer<EditorState & EditorActions>((set, get) => ({
+    schema: createEmptyPageSchema('未命名页面') as EditorState['schema'],
     selectedId: null,
     selectedIds: [],
     hoveredId: null,
     activeId: null,
     overContainerId: null,
     zoom: 1,
-    device: 'pc',
+    device: 'pc' as const,
     isDragging: false,
     isPreview: false,
     isDirty: false,
     isPublished: false,
     clipboard: null,
-    pages: [{
-      id: 'default',
-      title: '未命名页面',
-      name: '未命名页面',
-      version: 1,
-      isPublished: false,
-      updatedAt: new Date().toISOString(),
-    }],
+    pages: [
+      {
+        id: 'default',
+        title: '未命名页面',
+        name: '未命名页面',
+        version: 1,
+        isPublished: false,
+        updatedAt: new Date().toISOString(),
+      },
+    ],
     pageSchemas: {},
-    history: {
-      past: [],
-      present: createEmptyPageSchema('未命名页面'),
-      future: [],
-    },
-
-    setSchema: (schema) =>
-      set((state) => {
+    history: (() => {
+      const s = createEmptyPageSchema('未命名页面');
+      return { past: [] as PageSchema[], present: s, future: [] as PageSchema[] };
+    })(),
+    setSchema: schema => {
+      const pageId = schema.page?.id || 'default';
+      const saved = loadHistoryFromStorage(pageId);
+      const restoredHistory = saved
+        ? {
+            past: saved.past || [],
+            present: saved.present || schema,
+            future: saved.future || [],
+          }
+        : {
+            past: [],
+            present: schema,
+            future: [],
+          };
+      set(state => {
         state.schema = JSON.parse(JSON.stringify(schema));
         state.isDirty = true;
-        state.history = {
-          past: [],
-          present: JSON.parse(JSON.stringify(schema)),
-          future: [],
-        };
+        state.history = restoredHistory;
         state.selectedId = null;
         state.selectedIds = [];
-      }),
+      });
+    },
 
-    updatePageTitle: (title) =>
-      set((state) => {
+    updatePageTitle: title =>
+      set(state => {
         state.schema.page.title = title;
         state.isDirty = true;
       }),
 
-    selectComponent: (id) =>
-      set((state) => {
+    selectComponent: id =>
+      set(state => {
         state.selectedId = id;
         state.selectedIds = id ? [id] : [];
       }),
 
-    toggleComponentSelection: (id) =>
-      set((state) => {
+    toggleComponentSelection: id =>
+      set(state => {
         const idx = state.selectedIds.indexOf(id);
         if (idx >= 0) {
           state.selectedIds.splice(idx, 1);
@@ -147,52 +250,54 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           state.selectedIds.push(id);
         }
         state.selectedIds = [...state.selectedIds];
-        state.selectedId = state.selectedIds.length > 0 ? state.selectedIds[state.selectedIds.length - 1] : null;
+        state.selectedId =
+          state.selectedIds.length > 0 ? state.selectedIds[state.selectedIds.length - 1] : null;
       }),
 
     clearSelection: () =>
-      set((state) => {
+      set(state => {
         state.selectedId = null;
         state.selectedIds = [];
       }),
 
-    hoverComponent: (id) =>
-      set((state) => {
+    hoverComponent: id =>
+      set(state => {
         state.hoveredId = id;
       }),
 
-    setActiveId: (id) =>
-      set((state) => {
+    setActiveId: id =>
+      set(state => {
         state.activeId = id;
       }),
 
-    setOverContainerId: (id) =>
-      set((state) => {
+    setOverContainerId: id =>
+      set(state => {
         state.overContainerId = id;
       }),
 
-    setZoom: (zoom) =>
-      set((state) => {
+    setZoom: zoom =>
+      set(state => {
         state.zoom = zoom;
       }),
 
-    setDevice: (device) =>
-      set((state) => {
+    setDevice: device =>
+      set(state => {
         state.device = device;
       }),
 
-    setDragging: (isDragging) =>
-      set((state) => {
+    setDragging: isDragging =>
+      set(state => {
         state.isDragging = isDragging;
       }),
 
-    setPreview: (isPreview) =>
-      set((state) => {
+    setPreview: isPreview =>
+      set(state => {
         state.isPreview = isPreview;
       }),
 
-    saveSnapshot: () =>
-      set((state) => {
+    saveSnapshot: () => {
+      const pageId = get().schema.page?.id || 'default';
+      set(state => {
         const { past, present } = state.history;
         const newPast = [...past, JSON.parse(JSON.stringify(present))].slice(-MAX_HISTORY);
         state.history = {
@@ -200,10 +305,13 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           present: JSON.parse(JSON.stringify(state.schema)),
           future: [],
         };
-      }),
+        saveHistoryToStorage(pageId, state.history);
+      });
+    },
 
-    undo: () =>
-      set((state) => {
+    undo: () => {
+      const pageId = get().schema.page?.id || 'default';
+      set(state => {
         const { past, present, future } = state.history;
         if (past.length === 0) return;
 
@@ -216,10 +324,13 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           present: previous,
           future: [present, ...future],
         };
-      }),
+        saveHistoryToStorage(pageId, state.history);
+      });
+    },
 
-    redo: () =>
-      set((state) => {
+    redo: () => {
+      const pageId = get().schema.page?.id || 'default';
+      set(state => {
         const { past, present, future } = state.history;
         if (future.length === 0) return;
 
@@ -232,7 +343,9 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           present: next,
           future: newFuture,
         };
-      }),
+        saveHistoryToStorage(pageId, state.history);
+      });
+    },
 
     addComponent: (componentType, targetId, position) => {
       const meta = getComponentMeta(componentType);
@@ -248,7 +361,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.schema.page.components = insertComponent(
           state.schema.page.components,
           targetId,
@@ -261,14 +374,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       });
     },
 
-    removeComponent: (id) => {
+    removeComponent: id => {
       get().saveSnapshot();
 
-      set((state) => {
-        state.schema.page.components = removeComponentById(
-          state.schema.page.components,
-          id
-        );
+      set(state => {
+        state.schema.page.components = removeComponentById(state.schema.page.components, id);
         if (state.selectedId === id) {
           state.selectedId = null;
         }
@@ -280,7 +390,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     updateComponent: (id, props) => {
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.schema.page.components = updateComponentProps(
           state.schema.page.components,
           id,
@@ -293,7 +403,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     moveComponent: (sourceId, targetId, position, index) => {
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.schema.page.components = moveComponentHelper(
           state.schema.page.components,
           sourceId,
@@ -305,14 +415,14 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       });
     },
 
-    duplicateComponent: (id) => {
+    duplicateComponent: id => {
       const component = findComponentById(get().schema.page.components, id);
       if (!component) return;
 
       get().saveSnapshot();
 
       const cloned = cloneComponent(component);
-      set((state) => {
+      set(state => {
         state.schema.page.components = insertComponent(
           state.schema.page.components,
           id,
@@ -331,7 +441,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       get().saveSnapshot();
 
       const cloned = cloneComponent(clipboard);
-      set((state) => {
+      set(state => {
         state.schema.page.components = insertComponent(
           state.schema.page.components,
           selectedId,
@@ -343,24 +453,21 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       });
     },
 
-    copyComponent: (id) => {
+    copyComponent: id => {
       const component = findComponentById(get().schema.page.components, id);
       if (!component) return;
       set({ clipboard: JSON.parse(JSON.stringify(component)) });
     },
 
-    cutComponent: (id) => {
+    cutComponent: id => {
       const component = findComponentById(get().schema.page.components, id);
       if (!component) return;
 
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.clipboard = JSON.parse(JSON.stringify(component));
-        state.schema.page.components = removeComponentById(
-          state.schema.page.components,
-          id
-        );
+        state.schema.page.components = removeComponentById(state.schema.page.components, id);
         if (state.selectedId === id) {
           state.selectedId = null;
         }
@@ -369,50 +476,60 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       });
     },
 
-    alignComponents: (direction) => {
+    alignComponents: direction => {
       const { selectedIds } = get();
       if (selectedIds.length < 2) return;
 
       get().saveSnapshot();
 
       const components = selectedIds
-        .map((id) => findComponentById(get().schema.page.components, id))
+        .map(id => findComponentById(get().schema.page.components, id))
         .filter(Boolean) as PageComponent[];
 
-      const props = components.map((c) => (c.props?.style || {}) as Record<string, number>);
-      const widths = props.map((p) => p['width'] || 120);
-      const heights = props.map((p) => (p.height as number) || 40);
+      const props = components.map(c => (c.props?.style || {}) as Record<string, number>);
+      const widths = props.map(p => p['width'] || 120);
+      const heights = props.map(p => (p.height as number) || 40);
 
       let targetValue: number;
       switch (direction) {
         case 'left':
-          targetValue = Math.min(...props.map((p) => (p.marginLeft as number) || 0));
+          targetValue = Math.min(...props.map(p => (p.marginLeft as number) || 0));
           break;
         case 'right':
-          targetValue = Math.max(...props.map((p, i) => ((p.marginLeft as number) || 0) + widths[i]));
+          targetValue = Math.max(
+            ...props.map((p, i) => ((p.marginLeft as number) || 0) + widths[i])
+          );
           break;
         case 'center':
-          targetValue = props.reduce((sum, p, i) => sum + ((p.marginLeft as number) || 0) + widths[i] / 2, 0) / props.length;
+          targetValue =
+            props.reduce((sum, p, i) => sum + ((p.marginLeft as number) || 0) + widths[i] / 2, 0) /
+            props.length;
           break;
         case 'top':
-          targetValue = Math.min(...props.map((p) => (p.marginTop as number) || 0));
+          targetValue = Math.min(...props.map(p => (p.marginTop as number) || 0));
           break;
         case 'bottom':
-          targetValue = Math.max(...props.map((p, i) => ((p.marginTop as number) || 0) + heights[i]));
+          targetValue = Math.max(
+            ...props.map((p, i) => ((p.marginTop as number) || 0) + heights[i])
+          );
           break;
         case 'middle':
-          targetValue = props.reduce((sum, p, i) => sum + ((p.marginTop as number) || 0) + heights[i] / 2, 0) / props.length;
+          targetValue =
+            props.reduce((sum, p, i) => sum + ((p.marginTop as number) || 0) + heights[i] / 2, 0) /
+            props.length;
           break;
         default:
           return;
       }
 
-      set((state) => {
+      set(state => {
         selectedIds.forEach((id, i) => {
           const comp = findComponentById(state.schema.page.components, id);
           if (!comp) return;
           // Deep-clone the style object to avoid shared reference mutations
-          const p: Record<string, unknown> = { ...((comp.props?.style || {}) as Record<string, unknown>) };
+          const p: Record<string, unknown> = {
+            ...((comp.props?.style || {}) as Record<string, unknown>),
+          };
           switch (direction) {
             case 'left':
               Object.assign(p, { marginLeft: targetValue });
@@ -440,43 +557,47 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       });
     },
 
-    distributeComponents: (direction) => {
+    distributeComponents: direction => {
       const { selectedIds } = get();
       if (selectedIds.length < 3) return;
 
       get().saveSnapshot();
 
       const components = selectedIds
-        .map((id) => findComponentById(get().schema.page.components, id))
+        .map(id => findComponentById(get().schema.page.components, id))
         .filter(Boolean) as PageComponent[];
 
-      const props = components.map((c) => (c.props?.style || {}) as Record<string, number>);
-      const sizes = direction === 'horizontal'
-        ? props.map((p) => p['marginLeft'] || 0)
-        : props.map((p) => p['marginTop'] || 0);
-      const dims = direction === 'horizontal'
-        ? props.map((p) => p['width'] || 120)
-        : props.map((p) => p['height'] || 40);
+      const props = components.map(c => (c.props?.style || {}) as Record<string, number>);
+      const sizes =
+        direction === 'horizontal'
+          ? props.map(p => p['marginLeft'] || 0)
+          : props.map(p => p['marginTop'] || 0);
+      const dims =
+        direction === 'horizontal'
+          ? props.map(p => p['width'] || 120)
+          : props.map(p => p['height'] || 40);
 
       const sortedIndices = sizes
         .map((v, i) => ({ v, i }))
         .sort((a, b) => a.v - b.v)
-        .map((x) => x.i);
+        .map(x => x.i);
 
-      const totalSpace = sizes[sortedIndices[sortedIndices.length - 1]] + dims[sortedIndices[sortedIndices.length - 1]] - sizes[sortedIndices[0]];
+      const totalSpace =
+        sizes[sortedIndices[sortedIndices.length - 1]] +
+        dims[sortedIndices[sortedIndices.length - 1]] -
+        sizes[sortedIndices[0]];
       const totalComponentSize = dims.reduce((s, d) => s + d, 0);
       const gap = (totalSpace - totalComponentSize) / (selectedIds.length - 1);
 
       const newPositions = new Array(selectedIds.length);
       let current = sizes[sortedIndices[0]];
       for (const idx of sortedIndices) {
-        newPositions[idx] = direction === 'horizontal'
-          ? { marginLeft: current }
-          : { marginTop: current };
+        newPositions[idx] =
+          direction === 'horizontal' ? { marginLeft: current } : { marginTop: current };
         current += dims[idx] + gap;
       }
 
-      set((state) => {
+      set(state => {
         selectedIds.forEach((id, i) => {
           const comp = findComponentById(state.schema.page.components, id);
           if (!comp) return;
@@ -494,11 +615,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.schema.page.components = updateComponentInTree(
           state.schema.page.components,
           selectedId,
-          (siblings) => moveToStartOfSiblings(siblings, selectedId)
+          siblings => moveToStartOfSiblings(siblings, selectedId)
         );
         state.isDirty = true;
       });
@@ -510,11 +631,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.schema.page.components = updateComponentInTree(
           state.schema.page.components,
           selectedId,
-          (siblings) => moveToEndOfSiblings(siblings, selectedId)
+          siblings => moveToEndOfSiblings(siblings, selectedId)
         );
         state.isDirty = true;
       });
@@ -526,11 +647,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.schema.page.components = updateComponentInTree(
           state.schema.page.components,
           selectedId,
-          (siblings) => swapInSiblings(siblings, selectedId, 'up')
+          siblings => swapInSiblings(siblings, selectedId, 'up')
         );
         state.isDirty = true;
       });
@@ -542,11 +663,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
       get().saveSnapshot();
 
-      set((state) => {
+      set(state => {
         state.schema.page.components = updateComponentInTree(
           state.schema.page.components,
           selectedId,
-          (siblings) => swapInSiblings(siblings, selectedId, 'down')
+          siblings => swapInSiblings(siblings, selectedId, 'down')
         );
         state.isDirty = true;
       });
@@ -562,7 +683,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ schema }),
         });
@@ -571,7 +692,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           throw new Error('Failed to save page');
         }
 
-        set((state) => {
+        set(state => {
           state.isDirty = false;
         });
       } catch (error) {
@@ -580,25 +701,34 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }
     },
 
-    loadPage: async (id) => {
+    loadPage: async id => {
       const token = localStorage.getItem('token');
       try {
         const response = await fetch(`/api/pages/${id}`, {
           headers: {
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         });
         if (!response.ok) {
           throw new Error('Failed to load page');
         }
         const data = await response.json();
-        set((state) => {
+        const pageId = id;
+        const saved = loadHistoryFromStorage(pageId);
+        const history = saved
+          ? {
+              past: saved.past || [],
+              present: saved.present || data.schema,
+              future: saved.future || [],
+            }
+          : {
+              past: [],
+              present: JSON.parse(JSON.stringify(data.schema)),
+              future: [],
+            };
+        set(state => {
           state.schema = { ...data.schema, page: { ...data.schema.page, id } };
-          state.history = {
-            past: [],
-            present: JSON.parse(JSON.stringify(data.schema)),
-            future: [],
-          };
+          state.history = history;
           state.isDirty = false;
           state.selectedId = null;
           state.selectedIds = [];
@@ -609,17 +739,18 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }
     },
 
-    setPublished: (published) =>
-      set((state) => {
+    setPublished: published =>
+      set(state => {
         state.isPublished = published;
       }),
 
-    switchPage: async (pageId) => {
-      const currentPageId = get().schema.page.id;
+    switchPage: async pageId => {
+      const currentPageId = get().schema.page?.id;
       if (currentPageId === pageId) return;
+      clearHistoryStorage();
       const { pageSchemas } = get();
       if (pageSchemas[pageId]) {
-        set((state) => {
+        set(state => {
           state.schema = JSON.parse(JSON.stringify(pageSchemas[pageId]));
           state.isDirty = false;
           state.history = {
@@ -635,11 +766,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }
     },
 
-    createPage: (title) => {
+    createPage: title => {
       const newId = `page_${Date.now()}`;
       const newSchema = createEmptyPageSchema(title);
       newSchema.page.id = newId;
-      set((state) => {
+      set(state => {
         state.pages.push({
           id: newId,
           title,
@@ -663,7 +794,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     },
 
     renamePage: (pageId, title) => {
-      set((state) => {
+      set(state => {
         const page = state.pages.find(p => p.id === pageId);
         if (page) {
           page.title = title;
@@ -679,13 +810,17 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       });
     },
 
-    deletePage: (pageId) => {
-      set((state) => {
+    deletePage: pageId => {
+      set(state => {
         state.pages = state.pages.filter(p => p.id !== pageId);
         delete state.pageSchemas[pageId];
         if (state.schema.page.id === pageId && state.pages.length > 0) {
           const firstPage = state.pages[0];
-          state.schema = JSON.parse(JSON.stringify(state.pageSchemas[firstPage.id] || createEmptyPageSchema(firstPage.title)));
+          state.schema = JSON.parse(
+            JSON.stringify(
+              state.pageSchemas[firstPage.id] || createEmptyPageSchema(firstPage.title)
+            )
+          );
           state.schema.page.id = firstPage.id;
           state.isDirty = false;
           state.history = {
@@ -699,7 +834,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       });
     },
 
-    duplicatePage: (pageId) => {
+    duplicatePage: pageId => {
       const page = get().pages.find(p => p.id === pageId);
       const pageSchema = get().pageSchemas[pageId];
       if (!page) return;
@@ -709,7 +844,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         : createEmptyPageSchema(`${page.title} (副本)`);
       newSchema.page.id = newId;
       newSchema.page.title = `${page.title} (副本)`;
-      set((state) => {
+      set(state => {
         state.pages.push({
           id: newId,
           title: `${page.title} (副本)`,
@@ -723,7 +858,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     },
 
     setPagePublished: (pageId, published) => {
-      set((state) => {
+      set(state => {
         const page = state.pages.find(p => p.id === pageId);
         if (page) {
           page.isPublished = published;
@@ -735,13 +870,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       try {
         const response = await fetch('/api/pages', {
           headers: {
-            ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {}),
+            ...(localStorage.getItem('token')
+              ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+              : {}),
           },
         });
         if (!response.ok) return;
         const data = await response.json();
         if (data.success && Array.isArray(data.data)) {
-          set((state) => {
+          set(state => {
             state.pages = data.data.map((p: any) => ({
               id: p.id,
               title: p.title,
@@ -755,6 +892,46 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       } catch (e) {
         console.error('Failed to load page list:', e);
       }
+    },
+
+    // ============================================================
+    // Logic Flow Management
+    // ============================================================
+
+    addLogicFlow: (flow) => {
+      get().saveSnapshot();
+      set(state => {
+        state.schema.logic[flow.id] = flow;
+        state.isDirty = true;
+      });
+    },
+
+    updateLogicFlow: (flowId, flow) => {
+      get().saveSnapshot();
+      set(state => {
+        state.schema.logic[flowId] = flow;
+        state.isDirty = true;
+      });
+    },
+
+    removeLogicFlow: (flowId) => {
+      get().saveSnapshot();
+      set(state => {
+        delete state.schema.logic[flowId];
+        state.isDirty = true;
+      });
+    },
+
+    // ============================================================
+    // Data Source Management
+    // ============================================================
+
+    updateDataSources: (dataSources) => {
+      get().saveSnapshot();
+      set(state => {
+        state.schema.dataSources = dataSources;
+        state.isDirty = true;
+      });
     },
   }))
 );

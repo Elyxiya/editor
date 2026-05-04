@@ -1,16 +1,37 @@
 /**
  * Enhanced Page Renderer
- * 
+ *
  * 增强的页面渲染器 - 支持数据源绑定、事件处理和动态属性
+ * 使用 @lowcode/events 的 ActionExecutor 和 EventEmitter 进行动作执行
+ * 使用 @lowcode/datasource 的 DataSourceManager 进行数据源管理
+ * 使用 @lowcode/logic-engine 的 LogicExecutor 执行逻辑流程
  */
 
-import React, { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
-import { ConfigProvider, Spin, message } from 'antd';
+import React, { useState, useEffect, useCallback, useMemo, createContext, useContext, useRef } from 'react';
+import { ConfigProvider, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import { getComponent, getComponentMeta } from '@lowcode/components';
-import type { PageSchema, PageComponent, DataSource as DataSourceType, ComponentProps } from '@lowcode/types';
-import { EventEmitter } from '@lowcode/events';
-import { createCache } from '@lowcode/datasource';
+import { getComponent } from '@lowcode/components';
+import type {
+  PageSchema,
+  PageComponent,
+  DataSource as DataSourceType,
+  ComponentProps,
+  LogicFlow,
+} from '@lowcode/types';
+import {
+  EventEmitter,
+  ActionExecutor,
+  createActionFactory,
+  type Action,
+} from '@lowcode/events';
+import {
+  DataSourceManager,
+  type DataSourceState,
+} from '@lowcode/datasource';
+import {
+  LogicExecutor,
+  type TriggerInfo,
+} from '@lowcode/logic-engine';
 
 // ============================================================
 // 类型定义
@@ -22,18 +43,13 @@ interface PageRendererProps {
   onLoad?: () => void;
 }
 
-interface DataSourceState {
-  data: unknown;
-  loading: boolean;
-  error: Error | null;
-}
-
 interface RenderContextValue {
   dataSources: Map<string, DataSourceState>;
   variables: Record<string, unknown>;
   setVariable: (name: string, value: unknown) => void;
-  executeAction: (actionType: string, config: Record<string, unknown>) => void;
   eventEmitter: EventEmitter;
+  actionExecutor: ActionExecutor;
+  reloadDataSource: (name: string) => Promise<void>;
 }
 
 // ============================================================
@@ -54,81 +70,80 @@ function useRenderContext(): RenderContextValue {
 // 数据源管理
 // ============================================================
 
-interface UseDataSourceOptions {
-  autoLoad?: boolean;
-  transform?: (data: unknown) => unknown;
-}
+function usePageDataSources(dataSources: Record<string, DataSourceType>) {
+  const [states, setStates] = useState<Map<string, DataSourceState>>(() => new Map());
+  const managerRef = useRef<DataSourceManager | null>(null);
+  const dataSourcesRef = useRef<Record<string, DataSourceType>>(dataSources);
 
-function useDataSource(
-  dataSource: DataSourceType | undefined,
-  options: UseDataSourceOptions = {}
-) {
-  const [state, setState] = useState<DataSourceState>({
-    data: null,
-    loading: false,
-    error: null,
-  });
-
-  const cache = useMemo(() => createCache({ storage: 'memory' }), []);
-  const autoLoad = options.autoLoad ?? true;
-
-  const load = useCallback(async () => {
-    if (!dataSource) return;
-
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-
-    try {
-      let result: unknown;
-
-      if (dataSource.type === 'api') {
-        const { url, method = 'GET', params, body, headers, authType } = dataSource.config;
-
-        const requestHeaders: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(headers as Record<string, string>),
-        };
-
-        if (authType === 'bearer') {
-          requestHeaders['Authorization'] = `Bearer ${localStorage.getItem('access_token') || ''}`;
-        }
-
-        const response = await fetch(url || '/api/data', {
-          method,
-          headers: requestHeaders,
-          body: body ? JSON.stringify(body) : undefined,
-        });
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        result = await response.json();
-      } else if (dataSource.type === 'mock') {
-        // 模拟延迟
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        result = dataSource.config.mockData;
-      } else {
-        result = dataSource.config.mockData;
-      }
-
-      // 应用数据转换
-      if (options.transform) {
-        result = options.transform(result);
-      }
-
-      setState({ data: result, loading: false, error: null });
-    } catch (error) {
-      setState({ data: null, loading: false, error: error as Error });
-    }
-  }, [dataSource, options.transform]);
-
+  // Keep ref in sync
   useEffect(() => {
-    if (autoLoad && dataSource) {
-      load();
-    }
-  }, [autoLoad, dataSource, load]);
+    dataSourcesRef.current = dataSources;
+  }, [dataSources]);
 
-  return { ...state, reload: load };
+  // Initialize or update manager
+  useEffect(() => {
+    if (!managerRef.current) {
+      managerRef.current = new DataSourceManager({
+        debug: false,
+        cacheConfig: { storage: 'memory', defaultExpire: 5 * 60 * 1000 },
+      });
+
+      managerRef.current.subscribe((newStates) => {
+        setStates(new Map(newStates));
+      });
+    }
+
+    const manager = managerRef.current;
+
+    // Register all data sources from schema
+    Object.values(dataSources).forEach((ds) => {
+      if (!manager.getDataSource(ds.name)) {
+        try {
+          manager.register({
+            id: ds.id,
+            name: ds.name,
+            type: ds.type,
+            description: ds.description,
+            autoLoad: ds.autoLoad,
+            loadDelay: ds.loadDelay,
+            config: ds.config as any,
+          });
+        } catch (err) {
+          console.warn(`Failed to register data source "${ds.name}":`, err);
+        }
+      }
+    });
+
+    // Load all autoLoad data sources
+    Object.values(dataSources).forEach((ds) => {
+      if (ds.autoLoad) {
+        manager.load(ds.name).catch((err) => {
+          console.warn(`Failed to load data source "${ds.name}":`, err);
+        });
+      }
+    });
+
+    // Sync initial states
+    setStates(new Map(manager.getStates()));
+
+    return () => {
+      // Cleanup: unregister data sources that no longer exist
+      const currentNames = new Set(Object.keys(dataSources));
+      manager.getAllDataSources().forEach((ds) => {
+        if (!currentNames.has(ds.name)) {
+          manager.unregister(ds.name);
+        }
+      });
+    };
+  }, [dataSources]);
+
+  const reload = useCallback(async (name: string) => {
+    if (managerRef.current) {
+      await managerRef.current.load(name);
+    }
+  }, []);
+
+  return { states, reload };
 }
 
 // ============================================================
@@ -136,22 +151,19 @@ function useDataSource(
 // ============================================================
 
 interface ActionContextValue {
-  dataSources: Map<string, { data: unknown; loading: boolean; error: Error | null }>;
+  dataSources: Map<string, DataSourceState>;
   variables: Record<string, unknown>;
-  setVariable: (name: string, value: unknown) => void;
   eventEmitter: EventEmitter;
 }
 
 function resolvePropValue(value: unknown, context: ActionContextValue): unknown {
   if (typeof value !== 'string') return value;
 
-  // 检查是否是变量引用 {{variableName}}
   const variableMatch = value.match(/^\{\{(\w+)\}\}$/);
   if (variableMatch) {
     return context.variables[variableMatch[1]];
   }
 
-  // 检查是否是数据源引用 {{dataSourceName}}
   const dataSourceMatch = value.match(/^\{\{(\w+)\.(\w+)\}\}$/);
   if (dataSourceMatch) {
     const [, dsName, field] = dataSourceMatch;
@@ -161,100 +173,15 @@ function resolvePropValue(value: unknown, context: ActionContextValue): unknown 
     }
   }
 
-  // 检查是否是三元表达式 {{condition ? value1 : value2}}
-  const ternaryMatch = value.match(/^\{\{(.+)\?(.+):(.+)\}\}$/);
-  if (ternaryMatch) {
-    const [, condition, trueVal, falseVal] = ternaryMatch;
-    try {
-      const keys = Object.keys(context.variables);
-      const values = Object.values(context.variables);
-      const fn = new Function(...keys, `return ${condition}`);
-      return fn(...values) ? trueVal.trim() : falseVal.trim();
-    } catch {
-      return value;
-    }
-  }
-
   return value;
 }
 
 function resolveProps(props: ComponentProps, context: ActionContextValue): ComponentProps {
   const resolved: ComponentProps = {};
-
   for (const [key, value] of Object.entries(props)) {
     resolved[key] = resolvePropValue(value, context);
   }
-
   return resolved;
-}
-
-// ============================================================
-// 动作执行器
-// ============================================================
-
-function createActionExecutor(context: {
-  dataSources: Map<string, { data: unknown; loading: boolean; error: Error | null }>;
-  variables: Record<string, unknown>;
-  setVariable: (name: string, value: unknown) => void;
-  eventEmitter: EventEmitter;
-}) {
-  const executeAction = async (actionType: string, config: Record<string, unknown>) => {
-    switch (actionType) {
-      case 'showMessage': {
-        const content = config['content'] as string | undefined;
-        const type = (config['type'] as string) || 'info';
-        (message as unknown as Record<string, (msg: string) => void>)[type]?.(content || '');
-        break;
-      }
-
-      case 'navigate': {
-        const path = config['path'] as string | undefined;
-        const navParams = (config['params'] as Record<string, unknown>) || {};
-        const queryString = new URLSearchParams(
-          Object.entries(navParams).map(([k, v]) => [k, String(v)])
-        ).toString();
-        const finalPath = queryString ? `${path || ''}?${queryString}` : (path || '');
-        window.location.href = finalPath;
-        break;
-      }
-
-      case 'setValue': {
-        const { variable, value } = config;
-        context.setVariable(variable as string, resolvePropValue(value, context));
-        break;
-      }
-
-      case 'callApi': {
-        const { url, method = 'GET', body } = config;
-        try {
-          const response = await fetch(url as string, {
-            method: method as string,
-            headers: { 'Content-Type': 'application/json' },
-            body: body ? JSON.stringify(body) : undefined,
-          });
-          const data = await response.json();
-          context.setVariable('_api_response', data);
-        } catch (error) {
-          context.setVariable('_api_error', error);
-        }
-        break;
-      }
-
-      case 'download': {
-        const { url, filename } = config;
-        const link = document.createElement('a');
-        link.href = url as string;
-        if (filename) link.download = filename as string;
-        link.click();
-        break;
-      }
-
-      default:
-        console.warn(`Unknown action type: ${actionType}`);
-    }
-  };
-
-  return executeAction;
 }
 
 // ============================================================
@@ -263,12 +190,10 @@ function createActionExecutor(context: {
 
 interface RenderComponentProps {
   component: PageComponent;
-  isSelected?: boolean;
 }
 
 const RenderComponent: React.FC<RenderComponentProps> = ({ component }) => {
   const context = useRenderContext();
-  const meta = getComponentMeta(component.type);
   const Component = getComponent(component.type);
 
   if (!Component) {
@@ -286,53 +211,49 @@ const RenderComponent: React.FC<RenderComponentProps> = ({ component }) => {
     );
   }
 
-  // 解析动态属性
   const resolvedProps = useMemo(
     () => resolveProps(component.props || {}, context),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [component.props, context.variables, context.dataSources]
   );
 
-  // 处理事件绑定
   const handleEvent = useCallback(
-    (eventName: string, event: React.SyntheticEvent) => {
-      context.eventEmitter.emit(eventName as any, {
+    (eventName: string, nativeEvent: Event) => {
+      context.eventEmitter.emit(eventName, {
         componentId: component.id,
         componentType: component.type,
-        nativeEvent: event.nativeEvent,
-        target: event.target as HTMLElement,
+        nativeEvent,
+        target: nativeEvent.target as HTMLElement | null,
+        bubbles: nativeEvent.bubbles,
+        cancelable: nativeEvent.cancelable,
+        timestamp: nativeEvent.timeStamp,
+        data: {},
       });
     },
     [component.id, component.type, context.eventEmitter]
   );
 
-  // 处理组件事件
   const mergedProps = useMemo(() => {
     const props: ComponentProps = { ...resolvedProps };
 
-    // 绑定组件事件
     if (component.events) {
-      Object.entries(component.events).forEach(([eventName, handler]) => {
-        (props as ComponentProps)[eventName] = (e: React.SyntheticEvent) => {
-          handleEvent(eventName, e);
-
-          // 执行自定义处理器
-          if (handler && typeof handler === 'string') {
-            try {
-              const keys = Object.keys(context.variables);
-              const values = Object.values(context.variables);
-              const fn = new Function(...keys, handler);
-              fn(...values);
-            } catch (error) {
-              console.error('Event handler error:', error);
-            }
-          }
-        };
+      Object.entries(component.events).forEach(([eventName, actionList]) => {
+        if (Array.isArray(actionList)) {
+          (props as ComponentProps)[eventName] = (e: React.SyntheticEvent) => {
+            handleEvent(eventName, e.nativeEvent);
+            const actions: Action[] = actionList.map((a) =>
+              typeof a === 'string'
+                ? createActionFactory().createExpression(a)
+                : a
+            );
+            context.actionExecutor.executeBatch(actions);
+          };
+        }
       });
     }
 
     return props;
-  }, [resolvedProps, component.events, handleEvent, context.variables]);
+  }, [resolvedProps, component.events, handleEvent, context.actionExecutor]);
 
   return <Component {...mergedProps} />;
 };
@@ -347,19 +268,18 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
   const children = component.children ?? [];
   const { ...props } = componentProps;
 
-  // 解析容器属性
   const resolvedProps = useMemo(
     () => resolveProps(props, context),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [props, context.variables, context.dataSources]
   );
 
-  // Container 布局
   if (component.type === 'Container') {
     const padding = resolvedProps.padding as React.CSSProperties['padding'];
-    const bg = resolvedProps.backgroundColor as string | undefined
-      || resolvedProps.background as string | undefined
-      || '#ffffff';
+    const bg =
+      (resolvedProps.backgroundColor as string | undefined) ||
+      (resolvedProps.background as string | undefined) ||
+      '#ffffff';
     const br = resolvedProps.borderRadius as React.CSSProperties['borderRadius'];
     const mh = resolvedProps.minHeight as React.CSSProperties['minHeight'];
     const fd = resolvedProps.flexDirection as React.CSSProperties['flexDirection'];
@@ -367,6 +287,23 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     const ai = resolvedProps.alignItems as React.CSSProperties['alignItems'];
     const gap = resolvedProps.gap as React.CSSProperties['gap'];
     const fw = resolvedProps.flexWrap as React.CSSProperties['flexWrap'];
+
+    const handleClick = (e: React.MouseEvent) => {
+      context.eventEmitter.emit('click', {
+        componentId: component.id,
+        componentType: component.type,
+        nativeEvent: e.nativeEvent,
+        target: e.target as HTMLElement,
+        bubbles: e.bubbles,
+        cancelable: e.cancelable,
+        timestamp: e.timeStamp,
+        data: {},
+      });
+      if (resolvedProps.onClick) {
+        (resolvedProps.onClick as (e: React.MouseEvent) => void)(e);
+      }
+    };
+
     return (
       <div
         style={{
@@ -383,16 +320,7 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
           ...(resolvedProps.style as React.CSSProperties),
         }}
         className={resolvedProps.className as string}
-        onClick={(e) => {
-          if (resolvedProps.onClick) {
-            context.eventEmitter.emit('click' as any, {
-              componentId: component.id,
-              componentType: component.type,
-              nativeEvent: e.nativeEvent,
-              target: e.target as HTMLElement,
-            });
-          }
-        }}
+        onClick={handleClick}
       >
         {children?.map((child) => (
           <RenderContainer key={child.id} component={child} />
@@ -401,26 +329,21 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Space 布局
   if (component.type === 'Space') {
     const gapMap: Record<string, number> = { small: 8, middle: 16, large: 24 };
     const size = resolvedProps.size;
-    const gap = typeof size === 'string'
-      ? gapMap[size] || 8
-      : (size as number ?? 8);
+    const gap = typeof size === 'string' ? gapMap[size] || 8 : ((size as number) ?? 8);
     const dir = resolvedProps.direction as string;
     const align = resolvedProps.align as string;
+
     return (
       <div
         style={{
           display: 'flex',
           flexDirection: dir === 'vertical' ? 'column' : 'row',
           gap,
-          alignItems: align === 'center'
-            ? 'center'
-            : align === 'end'
-            ? 'flex-end'
-            : 'flex-start',
+          alignItems:
+            align === 'center' ? 'center' : align === 'end' ? 'flex-end' : 'flex-start',
           ...(resolvedProps.style as React.CSSProperties),
         }}
         className={resolvedProps.className as string}
@@ -432,14 +355,14 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Card 布局
   if (component.type === 'Card') {
     const pad = resolvedProps.padding as React.CSSProperties['padding'];
-    const bg = resolvedProps.backgroundColor as string | undefined || '#ffffff';
+    const bg = (resolvedProps.backgroundColor as string | undefined) || '#ffffff';
     const br = resolvedProps.borderRadius as React.CSSProperties['borderRadius'];
     const sh = resolvedProps.shadow as string;
     const ttl = resolvedProps.title;
     const ttlColor = resolvedProps.titleColor as string;
+
     return (
       <div
         style={{
@@ -451,7 +374,7 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
         }}
         className={resolvedProps.className as string}
       >
-        {(ttl as React.ReactNode) && (
+        {ttl && (
           <div
             style={{
               marginBottom: 16,
@@ -460,7 +383,7 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
               color: ttlColor || '#000',
             }}
           >
-            {ttl as React.ReactNode}
+            {ttl}
           </div>
         )}
         {children?.map((child) => (
@@ -470,10 +393,9 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Tag 标签组件（可嵌套在其他组件内）
   if (component.type === 'Tag') {
     const tagProps = { ...resolvedProps };
-    delete (tagProps as any).style;
+    delete (tagProps as Record<string, unknown>).style;
     return (
       <span
         style={resolvedProps.style as React.CSSProperties}
@@ -484,10 +406,9 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Badge 徽章组件
   if (component.type === 'Badge') {
     const badgeProps = { ...resolvedProps };
-    delete (badgeProps as any).style;
+    delete (badgeProps as Record<string, unknown>).style;
     return (
       <span
         style={resolvedProps.style as React.CSSProperties}
@@ -498,10 +419,9 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Avatar 头像组件
   if (component.type === 'Avatar') {
     const avatarProps = { ...resolvedProps };
-    delete (avatarProps as any).style;
+    delete (avatarProps as Record<string, unknown>).style;
     return (
       <span
         style={resolvedProps.style as React.CSSProperties}
@@ -512,10 +432,9 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Progress 进度条组件
   if (component.type === 'Progress') {
     const progressProps = { ...resolvedProps };
-    delete (progressProps as any).style;
+    delete (progressProps as Record<string, unknown>).style;
     return (
       <div
         style={{ width: '100%', ...(resolvedProps.style as React.CSSProperties) }}
@@ -526,10 +445,9 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Statistic 统计组件
   if (component.type === 'Statistic') {
     const statProps = { ...resolvedProps };
-    delete (statProps as any).style;
+    delete (statProps as Record<string, unknown>).style;
     return (
       <span
         style={resolvedProps.style as React.CSSProperties}
@@ -540,10 +458,9 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // Skeleton 骨架屏组件
   if (component.type === 'Skeleton') {
     const skelProps = { ...resolvedProps };
-    delete (skelProps as any).style;
+    delete (skelProps as Record<string, unknown>).style;
     return (
       <div
         style={{ width: '100%', ...(resolvedProps.style as React.CSSProperties) }}
@@ -554,10 +471,13 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // 图表组件
-  if (component.type === 'LineChart' || component.type === 'BarChart' || component.type === 'PieChart') {
+  if (
+    component.type === 'LineChart' ||
+    component.type === 'BarChart' ||
+    component.type === 'PieChart'
+  ) {
     const chartProps = { ...resolvedProps };
-    delete (chartProps as any).style;
+    delete (chartProps as Record<string, unknown>).style;
     return (
       <div
         style={{ width: '100%', ...(resolvedProps.style as React.CSSProperties) }}
@@ -568,7 +488,6 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     );
   }
 
-  // 默认容器：递归渲染子元素
   return (
     <>
       {children?.map((child) => (
@@ -577,95 +496,6 @@ const RenderContainer: React.FC<{ component: PageComponent }> = ({ component }) 
     </>
   );
 };
-
-// ============================================================
-// 页面加载器
-// ============================================================
-
-interface UsePageDataOptions {
-  dataSources: Record<string, DataSourceType>;
-}
-
-function usePageData(dataSources: Record<string, DataSourceType>) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [dataSourceStates, setDataSourceStates] = useState<Map<string, DataSourceState>>(
-    () => new Map()
-  );
-
-  const loadDataSources = useCallback(async () => {
-    const entries = Object.entries(dataSources);
-    if (entries.length === 0) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const results = await Promise.allSettled(
-      entries.map(async ([name, ds]) => {
-        let data: unknown;
-
-        if (ds.type === 'api') {
-          const { url, method = 'GET', params, body, headers } = ds.config;
-
-          const response = await fetch(url || `/api/${name}`, {
-            method,
-            headers: {
-              'Content-Type': 'application/json',
-              ...(headers as Record<string, string>),
-            },
-            body: body ? JSON.stringify(body) : undefined,
-          });
-
-          if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-          }
-
-          data = await response.json();
-        } else if (ds.type === 'mock') {
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          data = ds.config.mockData;
-        } else {
-          data = ds.config.mockData;
-        }
-
-        return { name, data };
-      })
-    );
-
-    const newStates = new Map<string, DataSourceState>();
-
-    results.forEach((result, index) => {
-      const name = entries[index][0];
-
-      if (result.status === 'fulfilled') {
-        newStates.set(name, {
-          data: result.value.data,
-          loading: false,
-          error: null,
-        });
-      } else {
-        newStates.set(name, {
-          data: null,
-          loading: false,
-          error: result.reason as Error,
-        });
-        setError(result.reason as Error);
-      }
-    });
-
-    setDataSourceStates(newStates);
-    setLoading(false);
-  }, [dataSources]);
-
-  useEffect(() => {
-    loadDataSources();
-  }, [loadDataSources]);
-
-  return { dataSourceStates, loading, error, reload: loadDataSources };
-}
 
 // ============================================================
 // 主渲染器
@@ -678,52 +508,128 @@ export const PageRenderer: React.FC<PageRendererProps> = ({
 }) => {
   const { page } = schema;
 
-  // 事件发射器
   const eventEmitter = useMemo(() => new EventEmitter({ debug: false }), []);
+  const actionExecutor = useMemo(() => new ActionExecutor(), []);
+  const logicExecutor = useMemo(() => new LogicExecutor({ enableLogging: false }), []);
 
-  // 变量状态
   const [variables, setVariables] = useState<Record<string, unknown>>({});
-
-  // 数据源状态
-  const { dataSourceStates, loading, error, reload } = usePageData(schema.dataSources);
-
-  // 动作执行器
-  const executeAction = useMemo(
-    () =>
-      createActionExecutor({
-        dataSources: dataSourceStates,
-        variables,
-        setVariable: (name: string, value: unknown) => setVariables(prev => ({ ...prev, [name]: value })),
-        eventEmitter,
-      }),
-    [dataSourceStates, variables, eventEmitter]
+  const { states: dataSourceStates, reload: reloadDataSource } = usePageDataSources(
+    schema.dataSources
   );
 
-  // 渲染上下文
+  // Execute logic flows from schema when component events fire
+  useEffect(() => {
+    const flows = schema.logic;
+    if (!flows || Object.keys(flows).length === 0) return;
+
+    const unsubscribers: Array<() => void> = [];
+
+    Object.values(flows).forEach((flow: LogicFlow) => {
+      const triggerNode = flow.nodes.find((n: any) => n.category === 'trigger');
+      if (!triggerNode) return;
+
+      const triggerType = triggerNode.type as string;
+      const handler = async (event: any) => {
+        try {
+          const triggerInfo: TriggerInfo = {
+            type: triggerType,
+            source: event?.componentId,
+            payload: event,
+          };
+
+          const mergedContext: Record<string, unknown> = { ...variables };
+          dataSourceStates.forEach((state, name) => {
+            mergedContext[name] = state.data;
+          });
+
+          const result = await logicExecutor.execute(flow as any, {
+            variables: mergedContext,
+            trigger: triggerInfo,
+          });
+
+          if (result.variables) {
+            Object.entries(result.variables).forEach(([k, v]) => {
+              if (k in (variables as object)) {
+                setVariable(k, v);
+              }
+            });
+          }
+        } catch (err) {
+          console.warn(`[LogicEngine] Flow ${flow.id} execution failed:`, err);
+        }
+      };
+
+      eventEmitter.on(triggerType, handler as any);
+      unsubscribers.push(() => eventEmitter.off(triggerType));
+    });
+
+    return () => {
+      unsubscribers.forEach((unsub) => unsub());
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema.logic]);
+
+  // Update action executor context when data sources or variables change
+  useEffect(() => {
+    const newContext: Record<string, unknown> = { ...variables };
+
+    dataSourceStates.forEach((state, name) => {
+      newContext[name] = state.data;
+      newContext[`${name}_loading`] = state.loading;
+      newContext[`${name}_error`] = state.error?.message ?? null;
+    });
+
+    actionExecutor.setContext(newContext);
+  }, [variables, dataSourceStates, actionExecutor]);
+
+  const setVariable = useCallback(
+    (name: string, value: unknown) => {
+      setVariables((prev) => {
+        const next = { ...prev, [name]: value };
+        actionExecutor.setContext({
+          ...actionExecutor.getContext(),
+          ...next,
+        });
+        return next;
+      });
+    },
+    [actionExecutor]
+  );
+
+  const loading = useMemo(() => {
+    for (const state of dataSourceStates.values()) {
+      if (state.loading) return true;
+    }
+    return false;
+  }, [dataSourceStates]);
+
   const renderContext: RenderContextValue = useMemo(
     () => ({
       dataSources: dataSourceStates,
       variables,
-      setVariable: (name: string, value: unknown) => setVariables(prev => ({ ...prev, [name]: value })),
-      executeAction,
+      setVariable,
       eventEmitter,
+      actionExecutor,
+      reloadDataSource,
     }),
-    [dataSourceStates, variables, executeAction, eventEmitter]
+    [dataSourceStates, variables, setVariable, eventEmitter, actionExecutor, reloadDataSource]
   );
 
-  // 加载完成回调
   useEffect(() => {
     if (!loading && onLoad) {
       onLoad();
     }
   }, [loading, onLoad]);
 
-  // 错误回调
   useEffect(() => {
-    if (error && onError) {
-      onError(error);
+    const hasError = Array.from(dataSourceStates.values()).some((s) => s.error);
+    if (hasError && onError) {
+      const firstError = Array.from(dataSourceStates.values()).find((s) => s.error);
+      if (firstError?.error) {
+        onError(firstError.error);
+      }
     }
-  }, [error, onError]);
+  }, [dataSourceStates, onError]);
 
   if (loading) {
     return (
@@ -746,8 +652,8 @@ export const PageRenderer: React.FC<PageRendererProps> = ({
         <div
           style={{
             minHeight: '100vh',
-            background: page.props.background || '#ffffff',
-            padding: page.props.padding || 0,
+            background: (page.props.background as string) || '#ffffff',
+            padding: (page.props.padding as number) || 0,
           }}
         >
           {page.components.map((component) => (
@@ -760,7 +666,7 @@ export const PageRenderer: React.FC<PageRendererProps> = ({
 };
 
 // ============================================================
-// 导出组件和 Hook
+// 导出
 // ============================================================
 
 export { useRenderContext };
