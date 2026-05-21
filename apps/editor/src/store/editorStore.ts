@@ -7,6 +7,7 @@ import {
   insertComponent,
   removeComponentById,
   updateComponentProps,
+  updateComponentMeta,
   moveComponent as moveComponentHelper,
   findComponentById,
   cloneComponent,
@@ -135,6 +136,7 @@ interface EditorActions {
   ) => void;
   removeComponent: (id: string) => void;
   updateComponent: (id: string, props: Record<string, unknown>) => void;
+  updateComponentMeta: (id: string, meta: Partial<Pick<PageComponent, 'permissionExpression' | 'label'>>) => void;
   moveComponent: (
     sourceId: string,
     targetId: string | null,
@@ -395,6 +397,19 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           state.schema.page.components,
           id,
           props
+        );
+        state.isDirty = true;
+      });
+    },
+
+    updateComponentMeta: (id, meta) => {
+      get().saveSnapshot();
+
+      set(state => {
+        state.schema.page.components = updateComponentMeta(
+          state.schema.page.components,
+          id,
+          meta
         );
         state.isDirty = true;
       });

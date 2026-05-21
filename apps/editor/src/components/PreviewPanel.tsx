@@ -70,7 +70,13 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ open, schema, onClos
       if (iframeRef.current?.contentWindow) {
         const { compressed, method } = encodeSchemaForTransfer(schema);
         iframeRef.current.contentWindow.postMessage(
-          { type: 'preview-schema', schema: compressed, method, dataSources: schema.dataSources },
+          {
+            type: 'preview-schema',
+            schema: compressed,
+            method,
+            dataSources: schema.dataSources,
+            token: localStorage.getItem('token'),
+          },
           '*'
         );
       }
@@ -122,11 +128,11 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ open, schema, onClos
         style={{
           position: 'relative',
           width: deviceWidth,
-          minHeight: 600,
+          height: '100%',
           margin: '0 auto',
           background: '#f5f5f5',
           flex: 1,
-          overflow: 'auto',
+          overflow: 'hidden',
           transition: 'width 0.2s ease',
         }}
       >
@@ -136,31 +142,35 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ open, schema, onClos
               position: 'absolute',
               inset: 0,
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               background: 'rgba(255,255,255,0.8)',
               zIndex: 10,
+              gap: 12,
             }}
           >
-            <Spin size="large" tip="渲染页面中..." />
+            <Spin size="large" />
+            <span style={{ color: '#666', fontSize: 14 }}>渲染页面中...</span>
           </div>
         )}
-        <iframe
-          key={iframeKey}
-          ref={iframeRef}
-          src={buildPreviewUrl()}
-          title="页面预览"
-          style={{
-            width: '100%',
-            height: '100%',
-            minHeight: 600,
-            border: 'none',
-            background: '#fff',
-            display: 'block',
-          }}
-          onLoad={handleIframeLoad}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        />
+        <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+          <iframe
+            key={iframeKey}
+            ref={iframeRef}
+            src={buildPreviewUrl()}
+            title="页面预览"
+            style={{
+              width: '100%',
+              minHeight: '100%',
+              border: 'none',
+              background: '#fff',
+              display: 'block',
+            }}
+            onLoad={handleIframeLoad}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          />
+        </div>
       </div>
     </Drawer>
   );

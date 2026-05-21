@@ -32,18 +32,19 @@ model Tenant {
 }
 
 model Page {
-  id          String   @id @default(uuid())
-  name        String
-  title       String
-  description String?
-  schema      String
-  version     Int      @default(1)
-  isPublished Boolean  @default(false)
-  projectId   String?
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  publishedAt DateTime?
+  id            String   @id @default(uuid())
+  name          String
+  title         String
+  description   String?
+  schema        String
+  version       Int      @default(1)
+  isPublished   Boolean  @default(false)
+  allowedRoles  String   @default("[]")
+  projectId     String?
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  publishedAt   DateTime?
 
   createdBy   User          @relation(fields: [createdById], references: [id])
   project     Project?      @relation(fields: [projectId], references: [id])

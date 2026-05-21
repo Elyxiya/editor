@@ -5,6 +5,10 @@ import { authRouter } from './routes/auth.js';
 import { pagesRouter } from './routes/pages.js';
 import { projectsRouter } from './routes/projects.js';
 import { templatesRouter } from './routes/templates.js';
+import { datasourceRouter } from './routes/datasource.js';
+import { dataProxyRouter } from './routes/dataProxy.js';
+import { uploadRouter } from './routes/upload.js';
+import { deployRouter } from './routes/deploy.js';
 import { initializeDatabase, disconnectDatabase } from './prisma.js';
 
 const app = express();
@@ -13,10 +17,14 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-app.use('/auth', authRouter);
-app.use('/pages', pagesRouter);
-app.use('/projects', projectsRouter);
-app.use('/templates', templatesRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/pages', pagesRouter);
+app.use('/api/projects', projectsRouter);
+app.use('/api/templates', templatesRouter);
+app.use('/api/datasource', datasourceRouter);
+app.use('/api/data-proxy', dataProxyRouter);
+app.use('/api/upload', uploadRouter);
+app.use(deployRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

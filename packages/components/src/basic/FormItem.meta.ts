@@ -13,6 +13,9 @@ export const FormItemMeta: ComponentMeta = {
     fieldType: 'input',
     placeholder: '请输入',
     options: [],
+    showWhen: undefined,
+    uploadConfig: undefined,
+    richTextConfig: undefined,
   },
   propSchema: [
     {
@@ -58,6 +61,8 @@ export const FormItemMeta: ComponentMeta = {
         { label: '开关', value: 'switch' },
         { label: '单选', value: 'radio' },
         { label: '多选', value: 'checkbox' },
+        { label: '文件上传', value: 'upload' },
+        { label: '富文本', value: 'richText' },
         { label: '自定义', value: 'custom' },
       ],
       defaultValue: 'input',
@@ -76,6 +81,13 @@ export const FormItemMeta: ComponentMeta = {
       type: 'array',
       group: 'data',
       tooltip: '下拉、单选、多选时的选项列表',
+    },
+    {
+      name: 'showWhen',
+      label: '条件显示',
+      type: 'object',
+      group: 'advanced',
+      tooltip: '设置依赖字段和条件表达式，控制表单项显示/隐藏',
     },
     {
       name: 'hidden',

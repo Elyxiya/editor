@@ -37,7 +37,7 @@ router.post('/register',
         data: { username, email, password: hashedPassword, role: 'developer' },
       });
 
-      const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '24h' });
+      const token = jwt.sign({ userId: user.id, role: user.role }, SECRET, { expiresIn: '24h' });
       res.status(201).json({
         success: true,
         data: {
@@ -77,7 +77,7 @@ router.post('/login',
         return res.status(401).json({ success: false, message: '用户名或密码错误' });
       }
 
-      const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '24h' });
+      const token = jwt.sign({ userId: user.id, role: user.role }, SECRET, { expiresIn: '24h' });
       res.json({
         success: true,
         data: {

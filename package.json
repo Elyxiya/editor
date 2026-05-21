@@ -2,7 +2,7 @@
   "name": "low-code-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "React + Node.js 低代码平台",
+  "description": "企业级低代码平台 – 可视化拖拽搭建后台管理系统和数据大屏，支持外部数据库集成、权限控制和一键部署",
   "packageManager": "pnpm@10.33.2",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
@@ -13,7 +13,9 @@
     "build:editor": "pnpm --filter @lowcode/editor build",
     "build:renderer": "pnpm --filter @lowcode/renderer build",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
@@ -44,6 +46,7 @@
     "node": ">=18.0.0"
   },
   "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "esbuild", "prisma"],
     "overrides": {
       "typescript": "^5.3.3"
     },

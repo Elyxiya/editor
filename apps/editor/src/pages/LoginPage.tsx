@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, message, Tabs, Typography } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '@/services/auth';
+import { ApiError } from '@/services/api';
 import styles from './LoginPage.module.css';
 
 const { Title, Text } = Typography;
@@ -11,6 +12,8 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
   const navigate = useNavigate();
+  const [loginForm] = Form.useForm();
+  const [registerForm] = Form.useForm();
 
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -20,8 +23,17 @@ export const LoginPage: React.FC = () => {
       message.success('登录成功');
       navigate('/projects');
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '登录失败';
-      message.error(errorMessage);
+      if (error instanceof ApiError && error.errors) {
+        loginForm.setFields(
+          error.errors.map((e: any) => ({
+            name: e.path,
+            errors: [e.msg],
+          }))
+        );
+      } else {
+        const errorMessage = error instanceof Error ? error.message : '登录失败';
+        message.error(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -35,8 +47,17 @@ export const LoginPage: React.FC = () => {
       message.success('注册成功');
       navigate('/projects');
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '注册失败';
-      message.error(errorMessage);
+      if (error instanceof ApiError && error.errors) {
+        registerForm.setFields(
+          error.errors.map((e: any) => ({
+            name: e.path,
+            errors: [e.msg],
+          }))
+        );
+      } else {
+        const errorMessage = error instanceof Error ? error.message : '注册失败';
+        message.error(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -60,6 +81,7 @@ export const LoginPage: React.FC = () => {
               label: '登录',
               children: (
                 <Form
+                  form={loginForm}
                   name="login"
                   onFinish={handleLogin}
                   layout="vertical"
@@ -106,6 +128,7 @@ export const LoginPage: React.FC = () => {
               label: '注册',
               children: (
                 <Form
+                  form={registerForm}
                   name="register"
                   onFinish={handleRegister}
                   layout="vertical"
@@ -143,7 +166,7 @@ export const LoginPage: React.FC = () => {
                     name="password"
                     rules={[
                       { required: true, message: '请输入密码' },
-                      { min: 6, message: '密码至少6个字符' },
+                      { min: 8, message: '密码至少8个字符' },
                     ]}
                   >
                     <Input.Password

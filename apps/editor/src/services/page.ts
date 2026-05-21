@@ -143,3 +143,45 @@ export async function getExportInfo(id: string): Promise<ExportResult> {
   const response = await api.get<{ success: boolean; data: ExportResult }>(`/pages/${id}/export`);
   return response.data!;
 }
+
+/**
+ * 部署页面
+ */
+export interface DeployResult {
+  url: string;
+  version: number;
+  storage: string;
+  storageName: string;
+  files: string[];
+}
+
+export async function deployPage(id: string): Promise<DeployResult> {
+  const response = await api.post<{ success: boolean; data: DeployResult }>(
+    `/pages/${id}/deploy`
+  );
+  return response.data!;
+}
+
+/**
+ * 获取部署历史
+ */
+export interface DeploymentInfo {
+  version: number;
+  url: string;
+  deployedAt: string;
+  size: number;
+  storage: string;
+  storageName: string;
+}
+
+export async function getDeployments(id: string): Promise<DeploymentInfo[]> {
+  const response = await api.get<{ success: boolean; data: DeploymentInfo[] }>(`/pages/${id}/deployments`);
+  return response.data || [];
+}
+
+/**
+ * 删除指定版本的部署
+ */
+export async function deleteDeployment(id: string, version: number): Promise<void> {
+  await api.delete(`/pages/${id}/deployments/${version}`);
+}

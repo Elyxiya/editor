@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { prisma } from '../prisma.js';
-import { requireAuth, getAuthenticatedUserId } from '../middleware/auth.js';
+import { requireAuth, getAuthenticatedUserId, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -29,6 +29,7 @@ router.get('/', async (req, res) => {
         createdAt: true,
         updatedAt: true,
         publishedAt: true,
+        allowedRoles: true,
       },
     });
     res.json({ success: true, data: pages });
@@ -57,12 +58,19 @@ router.get('/:id',
       if (page.createdById !== userId) {
         return res.status(403).json({ success: false, message: 'Access denied' });
       }
+      // Check page-level role permission
+      const allowedRoles = JSON.parse(page.allowedRoles || '[]');
+      const userRole = (req as any).user?.role;
+      if (allowedRoles.length > 0 && userRole && !allowedRoles.includes(userRole)) {
+        return res.status(403).json({ success: false, message: `权限不足，需要角色: ${allowedRoles.join(', ')}` });
+      }
       try {
         res.json({
           success: true,
           data: {
             ...page,
             schema: JSON.parse(page.schema),
+            allowedRoles,
           },
         });
       } catch {
@@ -94,6 +102,7 @@ router.post('/',
     }
 
     try {
+      const allowedRoles = req.body.allowedRoles || [];
       const page = await prisma.page.create({
         data: {
           name,
@@ -102,6 +111,7 @@ router.post('/',
           schema: JSON.stringify(schema),
           version: 1,
           createdById: userId,
+          allowedRoles: JSON.stringify(allowedRoles),
         },
       });
 
@@ -154,12 +164,17 @@ router.put('/:id',
 
       const newVersion = existing.version + 1;
 
+      const updateData: any = {
+        schema: JSON.stringify(schema),
+        version: newVersion,
+      };
+      if (req.body.allowedRoles !== undefined) {
+        updateData.allowedRoles = JSON.stringify(req.body.allowedRoles);
+      }
+
       const page = await prisma.page.update({
         where: { id },
-        data: {
-          schema: JSON.stringify(schema),
-          version: newVersion,
-        },
+        data: updateData,
       });
 
       await prisma.pageVersion.create({

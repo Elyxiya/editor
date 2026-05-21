@@ -106,6 +106,10 @@ const PageLoader: React.FC<PageLoaderProps> = ({ schemaParam, pageIdParam, previ
           } else {
             parsed = event.data.schema as PageSchema;
           }
+          // 存储编辑器的认证令牌，用于数据源 API 请求
+          if (event.data.token) {
+            localStorage.setItem('token', event.data.token);
+          }
           setSchema(parsed);
           setLoading(false);
           setError(null);
@@ -122,7 +126,7 @@ const PageLoader: React.FC<PageLoaderProps> = ({ schemaParam, pageIdParam, previ
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Spin size="large" tip={previewMode ? '等待编辑器数据...' : '加载页面数据...'} />
+        <Spin size="large" /><div style={{ marginTop: 12, color: '#666' }}>{previewMode ? '等待编辑器数据...' : '加载页面数据...'}</div>
       </div>
     );
   }

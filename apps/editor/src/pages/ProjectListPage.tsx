@@ -1,7 +1,8 @@
 import React from 'react';
-import { Card, List, Button, Empty, Input, Space, Typography } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { Card, List, Button, Empty, Input, Space, Typography, Dropdown, Avatar, message } from 'antd';
+import { PlusOutlined, SearchOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '@/services/auth';
 import styles from './ProjectListPage.module.css';
 
 const { Title, Text } = Typography;
@@ -14,6 +15,13 @@ const mockProjects = [
 
 export const ProjectListPage: React.FC = () => {
   const navigate = useNavigate();
+  const user = authService.getUser();
+
+  const handleLogout = () => {
+    authService.logout();
+    message.success('已退出登录');
+    navigate('/login');
+  };
 
   const handleCreateProject = () => {
     navigate('/editor/new');
@@ -23,6 +31,26 @@ export const ProjectListPage: React.FC = () => {
     navigate(`/editor/${projectId}`);
   };
 
+  const userMenuItems = [
+    {
+      key: 'userInfo',
+      label: (
+        <div style={{ padding: '4px 0' }}>
+          <div style={{ fontWeight: 500 }}>{user?.username}</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{user?.email}</Text>
+        </div>
+      ),
+      disabled: true,
+    },
+    { type: 'divider' as const },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: handleLogout,
+    },
+  ];
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -30,9 +58,19 @@ export const ProjectListPage: React.FC = () => {
           <Title level={2} style={{ marginBottom: 8 }}>我的项目</Title>
           <Text type="secondary">管理您的低代码项目</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateProject}>
-          新建项目
-        </Button>
+        <Space>
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+            <Button type="text" style={{ height: 48, padding: '4px 12px' }}>
+              <Space>
+                <Avatar size="small" icon={<UserOutlined />} />
+                <span>{user?.username || '用户'}</span>
+              </Space>
+            </Button>
+          </Dropdown>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateProject}>
+            新建项目
+          </Button>
+        </Space>
       </div>
 
       <Input

@@ -18,7 +18,7 @@ export interface PropSchema {
   dataSourceType?: 'api' | 'mock' | 'variable';
   validation?: ValidationRule[];
   tooltip?: string;
-  group?: 'basic' | 'style' | 'data' | 'event';
+  group?: 'basic' | 'style' | 'data' | 'event' | 'pagination' | 'toolbar' | 'advanced';
   min?: number;
   max?: number;
   step?: number;
@@ -62,6 +62,7 @@ export interface PageComponent {
   children?: PageComponent[];
   events?: Record<string, string> | Record<string, unknown>;
   style?: Record<string, string>;
+  permissionExpression?: string;
 }
 
 export interface DataSource {
@@ -122,6 +123,7 @@ export interface PageSchema {
     id?: string;
     title: string;
     description?: string;
+    allowedRoles?: string[];
     layout: 'flex' | 'grid' | 'absolute';
     props: {
       width?: number | string;

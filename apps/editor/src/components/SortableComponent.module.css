@@ -1,8 +1,7 @@
 .component {
   position: relative;
-  border: 1px dashed transparent;
   border-radius: 4px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: outline 0.15s, box-shadow 0.15s;
   cursor: pointer;
   width: 100%;
   margin-bottom: 8px;
@@ -10,11 +9,14 @@
 }
 
 .component:hover {
-  border-color: #1677ff;
+  outline: 1px solid #1677ff;
+  outline-offset: 0;
 }
 
 .component.selected {
-  border: 2px solid #1677ff;
+  outline: 2px solid #1677ff;
+  outline-offset: 0;
+  border-radius: 4px;
 }
 
 .component.dragging {
@@ -22,7 +24,8 @@
 }
 
 .component.dragOver {
-  border: 2px dashed #1677ff;
+  outline: 2px dashed #1677ff;
+  outline-offset: -1px;
   background: rgba(22, 119, 255, 0.05);
 }
 
@@ -80,7 +83,8 @@
 }
 
 .content {
-  /* pointer-events are inherited from parent; do not block children */
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .dropZone {

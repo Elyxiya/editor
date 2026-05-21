@@ -71,6 +71,8 @@ export const PropertyPanel: React.FC = () => {
     return getComponentMeta(selectedComponent.type);
   }, [selectedComponent]);
 
+  const updateComponentMeta = useEditorStore((s) => s.updateComponentMeta);
+
   const componentBindings = useMemo((): EventBinding[] => {
     return (selectedComponent?.events?.bindings || []) as EventBinding[];
   }, [selectedComponent]);
@@ -238,6 +240,13 @@ export const PropertyPanel: React.FC = () => {
           </Form.Item>
           <Form.Item label="组件类型">
             <Input value={componentMeta?.label || selectedComponent.type} disabled />
+          </Form.Item>
+          <Form.Item label="权限表达式" tooltip="例如: $user.role === 'admin'，控制组件可见性">
+            <Input
+              value={selectedComponent.permissionExpression || ''}
+              onChange={(e) => updateComponentMeta(selectedId!, { permissionExpression: e.target.value || undefined })}
+              placeholder="空表示不限制"
+            />
           </Form.Item>
           <Divider style={{ margin: '12px 0' }} />
           {basicProps?.map((prop) => renderFormItem(prop))}
@@ -522,6 +531,24 @@ export const PropertyPanel: React.FC = () => {
       children: (
         <Form layout="vertical" size="small">
           {dataProps?.map((prop) => renderFormItem(prop))}
+        </Form>
+      ),
+    },
+    {
+      key: 'pagination',
+      label: '分页',
+      children: (
+        <Form layout="vertical" size="small">
+          {componentMeta?.propSchema.filter((p) => p.group === 'pagination')?.map((prop) => renderFormItem(prop))}
+        </Form>
+      ),
+    },
+    {
+      key: 'toolbar',
+      label: '工具栏',
+      children: (
+        <Form layout="vertical" size="small">
+          {componentMeta?.propSchema.filter((p) => p.group === 'toolbar')?.map((prop) => renderFormItem(prop))}
         </Form>
       ),
     },

@@ -90,6 +90,10 @@ export declare class DataSourceManager {
      */
     private loadVariable;
     /**
+     * 加载数据库数据源
+     */
+    private loadDatabase;
+    /**
      * 应用数据映射
      */
     private applyDataMapping;

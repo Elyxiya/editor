@@ -334,6 +334,7 @@ export function createEmptyPageSchema(title: string = '未命名页面'): PageSc
     page: {
       title,
       layout: 'flex',
+      allowedRoles: [],
       props: {
         padding: 16,
         background: '#ffffff',
@@ -343,6 +344,22 @@ export function createEmptyPageSchema(title: string = '未命名页面'): PageSc
     dataSources: {},
     logic: {},
   };
+}
+
+export function updateComponentMeta(
+  components: PageComponent[],
+  id: string,
+  meta: Partial<Pick<PageComponent, 'permissionExpression' | 'label'>>
+): PageComponent[] {
+  return components.map((c) => {
+    if (c.id === id) {
+      return { ...c, ...meta };
+    }
+    if (c.children) {
+      return { ...c, children: updateComponentMeta(c.children, id, meta) };
+    }
+    return c;
+  });
 }
 
 export function validateSchemaVersion(schema: PageSchema): { valid: boolean; errors?: string[] } {

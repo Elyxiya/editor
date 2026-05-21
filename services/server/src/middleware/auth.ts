@@ -20,7 +20,6 @@ const SECRET = JWT_SECRET || 'lowcode-dev-secret-do-not-use-in-production';
 
 /**
  * Require authentication — returns 401 if token is missing or invalid.
- * Also clears token on 401 so the client is forced to re-login.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const auth = req.headers.authorization;
@@ -30,12 +29,30 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   try {
-    const decoded = jwt.verify(auth.slice(7), SECRET) as { userId: string };
-    (req as any).user = { userId: decoded.userId };
+    const decoded = jwt.verify(auth.slice(7), SECRET) as { userId: string; role?: string };
+    (req as any).user = { userId: decoded.userId, role: decoded.role || 'developer' };
     next();
   } catch {
     res.status(401).json({ success: false, message: '无效或过期的认证令牌' });
   }
+}
+
+/**
+ * Require specific role(s) — returns 403 if user's role is not in the allowed list.
+ */
+export function requireRole(...allowedRoles: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const userRole = (req as any).user?.role;
+    if (!userRole) {
+      res.status(401).json({ success: false, message: '未认证' });
+      return;
+    }
+    if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+      res.status(403).json({ success: false, message: `权限不足，需要角色: ${allowedRoles.join(', ')}` });
+      return;
+    }
+    next();
+  };
 }
 
 /**

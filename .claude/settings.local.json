@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\桌面\\\\web-txt\\\\xm\\\\editor\" -Depth 1 | Select-Object Mode, @{N=\"Name\";E={$_.Name}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\桌面\\\\web-txt\\\\xm\\\\editor\\\\apps\" -Directory -Recurse -Depth 1 | Select-Object @{N=\"Path\";E={$_.FullName.Replace\\('E:\\\\桌面\\\\web-txt\\\\xm\\\\editor\\\\',''\\)}} | Sort-Object Path)"
+    ]
+  }
+}

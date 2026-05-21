@@ -168,6 +168,9 @@ export class DataSourceManager {
         case 'variable':
           result = this.loadVariable(dataSource);
           break;
+        case 'database':
+          result = await this.loadDatabase(dataSource, params, abortController);
+          break;
         default:
           throw new Error(`Unsupported dataSource type: ${dataSource.type}`);
       }
@@ -418,6 +421,59 @@ export class DataSourceManager {
     // 变量类型直接从配置或上下文中获取
     const { config } = dataSource;
     return config.mockData || null;
+  }
+
+  /**
+   * 加载数据库数据源
+   */
+  private async loadDatabase(
+    dataSource: DataSource,
+    params: Record<string, unknown> | undefined,
+    abortController: AbortController
+  ): Promise<unknown> {
+    const { config } = dataSource;
+    const dsId = dataSource.id;
+    const table = config.table || '';
+
+    if (!dsId || !table) {
+      throw new Error(`Database data source ${dataSource.name} missing id or table config`);
+    }
+
+    // Build the data-proxy URL
+    const baseUrl = config.baseUrl || 'http://localhost:4000';
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, String(value));
+        }
+      });
+    }
+
+    const url = `${baseUrl}/api/data-proxy/${dsId}/${table}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(config.token ? { Authorization: `Bearer ${config.token}` } : {}),
+      },
+      signal: abortController.signal,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Database query failed (${response.status}): ${text}`);
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.message || 'Database query failed');
+    }
+
+    // Return in the format expected by the Table component
+    // The data-proxy returns: { list, total, page, pageSize }
+    return result.data;
   }
 
   /**

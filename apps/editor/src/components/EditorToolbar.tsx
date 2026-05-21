@@ -3,7 +3,7 @@ import { Button, Space, Tooltip, Divider, Modal, message, Select, Input, Dropdow
 import {
   SaveOutlined, UndoOutlined, RedoOutlined, ExportOutlined, EyeOutlined,
   DesktopOutlined, TabletOutlined, MobileOutlined, HistoryOutlined, CloudUploadOutlined, CloudSyncOutlined,
-  ThunderboltOutlined, ApiOutlined, FileTextOutlined,
+  ThunderboltOutlined, ApiOutlined, DatabaseOutlined, FileTextOutlined,
   AlignLeftOutlined, AlignCenterOutlined, AlignRightOutlined,
   VerticalAlignTopOutlined, VerticalAlignMiddleOutlined, VerticalAlignBottomOutlined,
   InsertRowRightOutlined, InsertRowBelowOutlined, StarOutlined
@@ -13,10 +13,13 @@ import { CodeExportPanel } from '@/components/CodeExportPanel';
 import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
 import { LogicFlowEditor } from '@/components/LogicFlowEditor';
 import { DataSourceManagementPanel } from '@/components/DataSourceManagementPanel';
+import { DataSourceWizard } from '@/components/DataSourceWizard';
 import { PageManagementPanel } from '@/components/PageManagementPanel';
 import { TemplateManagementPanel } from '@/components/TemplateManagementPanel';
 import { PreviewPanel } from '@/components/PreviewPanel';
-import { publishPage, unpublishPage } from '@/services/page';
+import { publishPage, unpublishPage, deployPage } from '@/services/page';
+import { generateComponentId, insertComponent } from '@lowcode/schema';
+import { getComponentMeta } from '@lowcode/components';
 import type { LogicFlow } from '@lowcode/logic-engine';
 import type { DataSource as DataSourceType } from '@lowcode/types';
 
@@ -32,10 +35,12 @@ export const EditorToolbar: React.FC = () => {
   const hasMultiSelect = selectedIds && selectedIds.length > 1;
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
   const [showLogicFlowEditor, setShowLogicFlowEditor] = useState(false);
   const [showDataSourcePanel, setShowDataSourcePanel] = useState(false);
+  const [showDataSourceWizard, setShowDataSourceWizard] = useState(false);
   const [showPagePanel, setShowPagePanel] = useState(false);
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
   const [showPreviewPanel, setShowPreviewPanel] = useState(false);
@@ -91,6 +96,73 @@ export const EditorToolbar: React.FC = () => {
     });
   }, [schema.page.id, isPublished, setPublished]);
 
+  const handleDeploy = useCallback(async () => {
+    const pageId = schema.page.id;
+    if (!pageId || pageId === 'default') {
+      message.warning('请先保存页面后再部署');
+      return;
+    }
+    setIsDeploying(true);
+    try {
+      const result = await deployPage(schema.page.id);
+      
+      // 根据存储类型显示不同图标
+      const storageIcon = result.storage === 'oss' ? '☁️' : '💾';
+      const storageLabel = result.storageName || '本地存储';
+      
+      Modal.success({
+        title: '🎉 部署成功',
+        icon: null,
+        content: (
+          <div>
+            <p style={{ marginBottom: 8 }}>
+              {storageIcon} 存储位置：<strong>{storageLabel}</strong>
+            </p>
+            <p style={{ marginBottom: 12 }}>页面已部署，版本 v{result.version}</p>
+            <div
+              style={{
+                padding: '12px 16px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 8,
+                wordBreak: 'break-all',
+                fontFamily: 'monospace',
+                fontSize: 13,
+                color: '#fff',
+                margin: '8px 0',
+                cursor: 'pointer',
+                position: 'relative',
+              }}
+              onClick={() => {
+                navigator.clipboard.writeText(result.url);
+                message.success('链接已复制到剪贴板');
+              }}
+            >
+              {result.url}
+              <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>点击复制链接 ↗</div>
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+              <Button
+                type="link"
+                href={result.url}
+                target="_blank"
+                style={{ padding: 0 }}
+              >
+                在新窗口打开 →
+              </Button>
+            </div>
+          </div>
+        ),
+        okText: '关闭',
+        width: 480,
+      });
+    } catch (err: any) {
+      console.error('Deploy error:', err);
+      message.error(err.message || '部署失败，请检查网络或服务端配置');
+    } finally {
+      setIsDeploying(false);
+    }
+  }, [schema.page.id]);
+
   const handleUnpublish = useCallback(async () => {
     const pageId = schema.page.id;
     if (!pageId || pageId === 'default') return;
@@ -123,6 +195,64 @@ export const EditorToolbar: React.FC = () => {
   const handleDataSourceSave = useCallback((dataSources: Record<string, DataSourceType>) => {
     updateDataSources(dataSources);
     message.success('数据源配置已保存');
+  }, [updateDataSources]);
+
+  const handleDataSourceWizardComplete = useCallback(async (result: {
+    tableSchema: any;
+    dataSourceConfig: any;
+  }) => {
+    // Save data source
+    const dsId = `ds_${Date.now()}`;
+    const dsConfig = {
+      ...result.dataSourceConfig,
+      id: dsId,
+    };
+    const newDataSources = {
+      ...useEditorStore.getState().schema.dataSources,
+      [dsId]: {
+        id: dsId,
+        name: result.dataSourceConfig.name,
+        type: 'database',
+        description: `数据库表: ${result.dataSourceConfig.config.table}`,
+        autoLoad: true,
+        loadDelay: 0,
+        config: result.dataSourceConfig.config,
+      } as DataSourceType,
+    };
+    updateDataSources(newDataSources);
+
+    // Add table component to canvas
+    const { addComponent, schema } = useEditorStore.getState();
+    const meta = getComponentMeta('Table');
+    if (meta) {
+      const newComponent = {
+        id: generateComponentId(),
+        type: 'Table',
+        label: result.tableSchema.label || `${result.dataSourceConfig.config.table} 表格`,
+        props: {
+          ...meta.defaultProps,
+          ...result.tableSchema.props,
+          columns: result.tableSchema.props.columns,
+          dataSourceId: dsId,
+          tableName: result.dataSourceConfig.config.table,
+        },
+      };
+
+      const updatedComponents = insertComponent(
+        schema.page.components,
+        null,
+        newComponent,
+        'after'
+      );
+      useEditorStore.setState(state => {
+        state.schema.page.components = updatedComponents;
+        state.selectedId = newComponent.id;
+        state.selectedIds = [newComponent.id];
+        state.isDirty = true;
+      });
+    }
+
+    message.success(`已从数据库导入 "${result.dataSourceConfig.config.table}" 表格`);
   }, [updateDataSources]);
 
   return (
@@ -205,10 +335,19 @@ export const EditorToolbar: React.FC = () => {
             <Tooltip title="页面管理"><Button icon={<FileTextOutlined />} onClick={() => setShowPagePanel(true)} /></Tooltip>
             <Tooltip title="模板市场"><Button icon={<StarOutlined />} onClick={() => setShowTemplatePanel(true)} /></Tooltip>
             <Tooltip title="数据源"><Button icon={<ApiOutlined />} onClick={() => setShowDataSourcePanel(true)} /></Tooltip>
+            <Tooltip title="数据库接入"><Button icon={<DatabaseOutlined />} onClick={() => setShowDataSourceWizard(true)} style={{ color: '#52c41a' }} /></Tooltip>
             <Tooltip title="逻辑流程"><Button icon={<ThunderboltOutlined />} onClick={() => setShowLogicFlowEditor(true)} /></Tooltip>
             <Divider type="vertical" />
             <Button icon={<EyeOutlined />} onClick={() => setShowPreviewPanel(true)}>预览</Button>
             <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
+            <Button
+              icon={<CloudUploadOutlined />}
+              onClick={handleDeploy}
+              loading={isDeploying}
+              style={{ color: '#722ed1', borderColor: '#722ed1' }}
+            >
+              部署
+            </Button>
             {isPublished ? (
               <Button
                 icon={<CloudSyncOutlined />}
@@ -290,6 +429,13 @@ export const EditorToolbar: React.FC = () => {
         onClose={() => setShowDataSourcePanel(false)}
         dataSources={schema.dataSources || {}}
         onSave={handleDataSourceSave}
+      />
+
+      {/* 数据库接入向导 */}
+      <DataSourceWizard
+        open={showDataSourceWizard}
+        onClose={() => setShowDataSourceWizard(false)}
+        onComplete={handleDataSourceWizardComplete}
       />
 
       {/* 页面管理面板 */}
